@@ -48,3 +48,8 @@ Thumbs.db
 *.mov
 *.wmv
 
+# Ignore auxiliary tex files except tex and pdf
+proposal/*
+!proposal/*.tex
+!proposal/*.pdf
+!proposal/workscited.bib

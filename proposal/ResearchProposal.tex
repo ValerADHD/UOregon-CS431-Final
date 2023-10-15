@@ -1,0 +1,136 @@
+\title{Rendering and Optimization of Gaussian Radiance Fields}
+
+\author{Valerie Dagley, Cameron Durbin, Andrew Rehmann}
+
+\newcommand{\abstractText}{\noindent
+Abstract goes here.
+}
+
+%%%%%%%%%%%%%%%%%
+% Configuration %
+%%%%%%%%%%%%%%%%%
+
+\documentclass[12pt, a4paper, twocolumn]{article}
+\usepackage{xurl}
+\usepackage[square, comma, numbers, sort]{natbib}
+\setcitestyle{numbers, open={[}, close={]}}
+\usepackage{abstract}
+\renewcommand{\abstractnamefont}{\normalfont\bfseries}
+\renewcommand{\abstracttextfont}{\normalfont\small\itshape}
+\usepackage{lipsum}
+
+\usepackage{titlesec}
+
+\titleformat{\section}
+  {\normalfont\fontsize{14}{14}\bfseries}{\thesection}{1em}{}
+
+
+%%%%%%%%%%%%%%
+% References %
+%%%%%%%%%%%%%%
+
+% If changing the name of the bib file, change \bibliography{test} at the bottom
+\begin{filecontents}{workscited.bib}
+@misc{kerbl20233d,
+  title={3D Gaussian Splatting for Real-Time Radiance Field Rendering}, 
+  author={Bernhard Kerbl and Georgios Kopanas and Thomas Leimkühler and George Drettakis},
+  year={2023},
+  eprint={2308.04079},
+  archivePrefix={arXiv},
+  primaryClass={cs.GR}
+}
+@misc{barron2022mipnerf,
+  title={Mip-NeRF 360: Unbounded Anti-Aliased Neural Radiance Fields}, 
+  author={Jonathan T. Barron and Ben Mildenhall and Dor Verbin and Pratul P. Srinivasan and Peter Hedman},
+  year={2022},
+  eprint={2111.12077},
+  archivePrefix={arXiv},
+  primaryClass={cs.CV}
+}
+\end{filecontents}
+
+% Any configuration that should be done before the end of the preamble:
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, urlcolor=blue, linkcolor=blue, citecolor=blue}
+
+\begin{document}
+
+%%%%%%%%%%%%
+% Abstract %
+%%%%%%%%%%%%
+
+\twocolumn[
+  \begin{@twocolumnfalse}
+    \maketitle
+    % \begin{abstract}
+    %   \abstractText
+    %   \newline
+    %   \newline
+    % \end{abstract}
+  \end{@twocolumnfalse}
+]
+
+%%%%%%%%%%%
+% Article %
+%%%%%%%%%%%
+
+\section{Project Area}
+This is a fairly new subject when it comes to research.
+Our main source of information comes from a recent paper,
+3D Gaussian Splatting for Real-Time Radiance Field Rendering
+\cite{kerbl20233d}. Other papers have detailed similar approaches to 
+modeling of scenes, such as Neural Radiance Fields (NeRFs) \cite{barron2022mipnerf},
+or DeepVoxels \cite{sitzmann2019deepvoxels}, but the novel
+approach of this paper is its use of gaussians to encapsulate 
+scene information and its fast rasterization.
+
+The general approach they followed is to first instantiate 3D gaussians
+based on sparse point clouds created with a process called structure from motion (SfM) \cite{Ko2016PointCG}.
+Then, the gaussians are split and duplicated until they more densely fill the space,
+later on being moved, removed, or split as needed. The gaussians are optimized
+to fit the scene by iterations of rendering (rasterization) and gradient descent
+against the known images of the scene. One of the main advances of this paper in particular
+was their fast implementation of rasterization, which allows many more ``splats''
+to receive gradients. This greatly speeds up training time as well as accuracy
+of the final scene.
+
+\section{Motivation}
+(Valerie, maybe you can speak to this a bit more)
+(Any ideas of exactly what sort of motivation we're talking about here?)
+
+We chose this topic for our project at least partially because it appeals to the 
+mixed strengths of our group, as well as to the desire to work on new and novel material.
+Valerie's main focus of interest is graphics and she had already skimmed the paper on her own.
+Cameron has prior experience when it comes to machine learning and gradient descent optimization (?).
+Andrew is relatively inexperienced when it comes to either of these fields. However, as a math major,
+he was interested in diving deeper into the world of gradient descent optimization, especially
+as a way to manipulate 3D gaussians. 
+
+\section{Directions of Investigation}
+As discussed by the paper in section 8, one possible section of 
+improvement would be to implement the optimization steps of the
+code entirely in C. They note that 
+\begin{quote}
+  ``The majority (~80\%) of our training time is spent in Python code,
+  since we built our solution in PyTorch to allow our method to be
+  easily used by others. Only the rasterization routine is implemented
+  as optimized CUDA kernels. We expect that porting the remaining
+  optimization entirely to CUDA, as e.g., done in InstantNGP [Müller
+  et al . 2022], could enable significant further speedup for applications
+  where performance is essential.''
+\end{quote}
+
+
+\section{Expected Results}
+
+
+
+%%%%%%%%%%%%%%
+% References %
+%%%%%%%%%%%%%%
+
+\nocite{*}
+\bibliographystyle{plainnat}
+\bibliography{workscited.bib}
+
+\end{document}
