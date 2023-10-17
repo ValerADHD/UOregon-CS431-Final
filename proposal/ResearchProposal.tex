@@ -4,6 +4,7 @@
 
 \newcommand{\abstractText}{\noindent
 Abstract goes here.
+
 }
 
 %%%%%%%%%%%%%%%%%
@@ -18,11 +19,17 @@ Abstract goes here.
 \renewcommand{\abstractnamefont}{\normalfont\bfseries}
 \renewcommand{\abstracttextfont}{\normalfont\small\itshape}
 \usepackage{lipsum}
+\usepackage{amsmath} 
+\usepackage{algorithm, algpseudocode, algorithmicx}
+
 
 \usepackage{titlesec}
 
 \titleformat{\section}
-  {\normalfont\fontsize{14}{14}\bfseries}{\thesection}{1em}{}
+  {\normalfont\fontsize{14}{14}\bfseries}{\thesection}{0.5em}{}
+
+\titleformat{\subsection}
+  {\normalfont\fontsize{12}{12}\bfseries}{\thesubsection}{0.5em}{}
 
 
 %%%%%%%%%%%%%%
@@ -62,11 +69,11 @@ Abstract goes here.
 \twocolumn[
   \begin{@twocolumnfalse}
     \maketitle
-    % \begin{abstract}
-    %   \abstractText
-    %   \newline
-    %   \newline
-    % \end{abstract}
+     % \begin{abstract}
+     %   \abstractText
+     %   \newline
+     %   \newline
+     % \end{abstract}
   \end{@twocolumnfalse}
 ]
 
@@ -74,44 +81,43 @@ Abstract goes here.
 % Article %
 %%%%%%%%%%%
 
-\section{Project Area}
-This is a fairly new subject when it comes to research.
-Our main source of information comes from a recent paper,
-3D Gaussian Splatting for Real-Time Radiance Field Rendering
-\cite{kerbl20233d}. Other papers have detailed similar approaches to 
-modeling of scenes, such as Neural Radiance Fields (NeRFs) \cite{barron2022mipnerf},
-or DeepVoxels \cite{sitzmann2019deepvoxels}, but the novel
-approach of this paper is its use of gaussians to encapsulate 
-scene information and its fast rasterization.
+\section{Introduction}
 
-The general approach they followed is to first instantiate 3D gaussians
-based on sparse point clouds created with a process called structure from motion (SfM) \cite{Ko2016PointCG}.
-Then, the gaussians are split and duplicated until they more densely fill the space,
-later on being moved, removed, or split as needed. The gaussians are optimized
-to fit the scene by iterations of rendering (rasterization) and gradient descent
-against the known images of the scene. One of the main advances of this paper in particular
-was their fast implementation of rasterization, which allows many more ``splats''
-to receive gradients. This greatly speeds up training time as well as accuracy
-of the final scene.
+The topic of novel view synthesis is a large and ongoing research area. Novel view synthesis (NVS) is the process of taking a set of images of a scene and generating new images from viewpoints not covered by the original data set. We plan to re-implement a recent NVS approach utilizing 3D Gaussians to create a scene representation capable of real time rendering of novel views.  
+
+\subsection{Description of Area}
+We chose to focus on the area of NVS relating to creating photorealistic renderings of physical scenes. Techniques exist to create other types of novel views (e.g. people in novel poses, scene relighting), however these are mostly unrelated to our problem area. 
+
+Early examples of NVS in the area of photorealistic rendering include point cloud rendering and photogrammetry. The generation of point clouds acts as a basis for many discrete scene representations, and can be generated with a varying number of photos. However, directly rendering scenes from point clouds fails when points become too sparse--requiring larger data sets and higher resolution base photos to create dense point clouds. Photogrammetry is the process of creating mesh and texture data from these point clouds. This works extremely well for existing rendering architectures, which optimize performance for high resolution mesh rendering. However, as with direct point cloud rendering, large data sets and high resolution photos are required for a quality output. Both of these techniques have applications in the real world. Point clouds are used extensively in fields like surveying and engineering due to the simplicity of construction for large areas with drones or laser technology. Photogrammetry is utilized in modern games, TV, and movie development. However, the ``cost of entry'' for these techniques prevents them from accessible individual use.
+
+Neural Radiance Fields (NeRFs) are a much more modern approach to NVS which require far fewer images to create a quality scene representation. NeRFs use machine learning techniques to generate a volumetric ``radiance function'' that takes in a position and view direction to output a view-dependent emitted radiance for the specific point. They then use a volumetric ray-tracing approach to render this radiance field. NeRFs allow for high quality view synthesis within a small range of viewpoints, however they have a few key failures. First, the use of volumetric ray tracing is extremely computationally expensive, preventing real time rendering in many situations. Second, radiance fields are inefficient when it comes to representing high frequency details (wires, fences, etc.). Third, radiance fields are difficult to combine with existing rendering methods.
+
+\subsection{Problems to be Explored}
+
+We plan to re-implement a very recent approach to NVS proposed by Kerbl et. al. \cite{kerbl20233d}. They propose a unique scene representation using 3D Gaussians (points with a sphere of influence, with a transparent ``fog'' tapering off with distance) to convert a point cloud representation into a differentiable volumetric representation. Their approach begins by generating a point cloud from a set of images using a structure from motion (SfM) algorithm \cite{Ko2016PointCG}. Using this as a basis, they create a set of Gaussians. They then optimize this set by splitting, merging, and adjusting different parameters to minimize the total loss between the rasterized result and the reference dataset. Because a key part of this optimization process is comparing the rasterized result to the references, the rasterizer must be very fast. They propose a tile based parallel CUDA rasterizer that allows realtime rasterization of millions of Gaussians with minimal error. Through the combination of the training model and the rasterizer, their system can create near-photorealistic novel views based on relatively small sets of images.
 
 \section{Motivation}
-(Valerie, maybe you can speak to this a bit more)
-(Any ideas of exactly what sort of motivation we're talking about here?)
 
-We chose this topic for our project at least partially because it appeals to the 
+\subsection{Reasons for Choosing this Area}
+
+We chose this topic for our project because it appeals to the 
 mixed strengths of our group, as well as to the desire to work on new and novel material.
-Valerie's main focus of interest is graphics and she had already skimmed the paper on her own.
-Cameron has prior experience when it comes to machine learning and gradient descent optimization (?).
-Andrew is relatively inexperienced when it comes to either of these fields. However, as a math major,
-he was interested in diving deeper into the world of gradient descent optimization, especially
-as a way to manipulate 3D gaussians. 
+Valerie's main focus of interest is in computer graphics. She had also skimmed the paper to determine if it was possible to replicate.
+Cameron has prior experience in the domains of High Performance Computing (HPC) and machine learning optimization.
+Andrew was interested in diving deeper into the world of gradient descent optimization, especially
+as a way to manipulate 3D Gaussians. 
+
+\subsection{Relevance and Importance of the Problem}
+
+As consumers continue to demand faster and higher quality graphics, new solutions must be researched. Devices that provide immersive experiences such as virtual reality and video games will be the first to adopt these new graphics solutions. Optimization in the rendering process of Gaussian Radiance Fields would provide enhanced realism in real-time rendering of complex scenes.
 
 \section{Directions of Investigation}
-As discussed by the paper in section 8, one possible section of 
+\subsection{Possible Research Approaches}
+In section 8 of the paper by Kerbl et al., \cite{kerbl20233d} they note that one possible 
 improvement would be to implement the optimization steps of the
-code entirely in C. They note that 
+code entirely in C.
 \begin{quote}
-  ``The majority (~80\%) of our training time is spent in Python code,
+  ``The majority ($\sim$80\%) of our training time is spent in Python code,
   since we built our solution in PyTorch to allow our method to be
   easily used by others. Only the rasterization routine is implemented
   as optimized CUDA kernels. We expect that porting the remaining
@@ -120,8 +126,57 @@ code entirely in C. They note that
   where performance is essential.''
 \end{quote}
 
+Since we are writing all of our code in C anyway, we may find that we already achieve a speedup
+as compared to the original paper, simply by porting it to C.
+
+Our approach will be to read the paper and get a firm grasp of the underlying principles in order to
+be able to implement it ourselves. There are two key aspects: the rasterization/rendering
+and the optimization of the Gaussians. They provide some pseudocode for the rendering side,
+as well as some equations for point-based alpha-blending rendering and the gradient computation.
+
+\subsection{Methodologies to be Employed}
+
+In measuring our performance, the simplest metric is training time. Nonetheless, it is equally crucial for our model to accurately represent the scene. The paper employs popular image similarity metrics, including peak signal-to-noise ratio (PSNR), structural similarity index measure (SSIM), and learned perceptual image patch similarity (LPIPS) \cite{kerbl20233d}. Python offers accessible libraries for these metrics, which would enable us to benchmark our newly generated images. This ensures that our model can be effectively compared to other state-of-the-art models.
 
 \section{Expected Results}
+\subsection{Potential Outcomes}
+
+A 3D Gaussian consists of an (X, Y, Z) coordinate triple representing position, a 3x3 covariance matrix representing the stretching and scaling of the distribution, and value $\alpha$ for transparency. Through gradient descent, we determine the position, covariance, and $\alpha$ transparency of 3D Gaussian distributions to accurately match with the known images of the scene.
+
+\begin{algorithm}
+\caption{Gradient Descent}
+\hspace*{\algorithmicindent} \textbf{Input:} $\Theta, \hat{I}, E_p, \eta$\\
+\hspace*{\algorithmicindent} \textbf{Output:} $\hat{\Theta}$
+\begin{algorithmic}[1]
+
+\Procedure{GradDescent}{}
+    \For{$i = 1$ to $E_p$}
+        \State $I \leftarrow \text{rasterize}(\Theta)$
+        \State $g \leftarrow \frac{1}{m} \sum_{j=1}^{m} \nabla \text{Loss}_j(I, \hat{I})$
+        \State $\Theta \leftarrow \Theta - \eta g$
+    \EndFor
+    \State \Return $\hat{\Theta}$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Potential Outcome: Parallel Batch Gradient Descent}
+
+The batch, $g$, is partly computed by taking the average of the $j$ gradients from the $\text{Loss}_j(I, \hat{I})$. Using $j$ threads to independently compute the gradients from $\text{Loss}_j(I, \hat{I})$ and a reduction for $g$, we could potentially increase the performance of the algorithm. Each thread would compute the derivative of the loss function with respect to the (X, Y, Z) coordinate pair, the 3x3 covariance matrix, and the $\alpha$ transparency to determine the gradient. The gradient will be used to update the parameters of the image. The returned parameters build a scene entirely made out of Gaussian distributions.
+
+\subsection{Future Research Directions}
+One possible future research topic would be on how accurately this method can reproduce
+any sort of reflections. Based on the lighting model (spherical harmonic) and the data of the Gaussians,
+it seems like it wouldn't be possible to render reflections. 
+Another underlying issue with this would be the ability of SfM to accurately render points on a mirror.
+In general, mirrors can interfere with SfM as they don't appear to be the flat surfaces that they actually are.
+
+The paper by Kerbl et al. \cite{kerbl20233d} brings up a possible research continuation that would involve attempting to convert the Gaussians into a 3D mesh.
+Then, the 3D mesh could be used more generally by other software.
+
+Furthermore, the performance of the optimization steps could be improved by looking towards advanced optimization techniques \cite{Mustapha_2021}, such as momentum-based learning (AdaGrad, RMSProp, Adam) and computationally efficient variations of the Newton Method (Conjugate Gradient, BFGS algorithm).
+
+
 
 
 
