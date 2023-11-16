@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16.3)
+cmake_minimum_required(VERSION 3.15.4)
 
 # set the compiler result to be in ./build/bin
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ./bin)
