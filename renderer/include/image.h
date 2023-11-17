@@ -24,6 +24,7 @@ class Image {
             tvec(tv), 
             camera_id(camera_id), 
             image_name(name), 
+            image_path(path),
             x_vals(xs),
             y_vals(ys),
             p3d_ids(p3ds) {}

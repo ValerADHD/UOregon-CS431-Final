@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include <opencv2/opencv.hpp>
+
 #include <cstdint>
 
 class Camera {
@@ -46,6 +48,7 @@ class CameraInfo {
             std::vector<double> T, 
             double FovX, 
             double FovY, 
+            cv::Mat image,
             std::string image_name, 
             std::string image_path,
             long long width, 
@@ -53,6 +56,7 @@ class CameraInfo {
               uid(uid),
               R(R),
               T(T),
+              image(image),
               FovX(FovX),
               FovY(FovY),
               image_name(image_name),
@@ -67,6 +71,7 @@ class CameraInfo {
     std::vector<double> T;
     double FovX;
     double FovY;
+    cv::Mat image;
     std::string image_name;
     std::string image_path;
     long long width;

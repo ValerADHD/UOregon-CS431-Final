@@ -26,7 +26,15 @@ ${CMAKE_BINARY_DIR}/bin/data
 # append all *.cpp files in ./src/ recursively to SOURCES env var
 file(GLOB_RECURSE SOURCES ${PROJECT_SOURCE_DIR}/src/*.cpp)
 
+# Find necessary packages
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(OPENCV REQUIRED opencv)
+
+# Include OpenCV directories
+include_directories(${OPENCV_INCLUDE_DIRS})
+
 add_executable(out ${SOURCES})
+target_link_libraries( out ${OPENCV_LIBRARIES} )
 
 # specify where to find header files to be included in compilation
 target_include_directories(out PRIVATE ${PROJECT_SOURCE_DIR}/include)

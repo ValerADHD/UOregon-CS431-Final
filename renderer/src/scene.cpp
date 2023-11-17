@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <cmath>
 
+#include <opencv2/opencv.hpp>
+
 #include "camera.h"
 #include "image.h"
 #include "scene.h"
@@ -64,7 +66,8 @@ void Scene::generate_camera_infos(std::vector<Image>* images,
         std::string image_path = extr.getPath();
 
         // add Image
-        CameraInfo cam_info(uid, R, T, FovX, FovY, image_name, image_path, width, height);
+        cv::Mat img = cv::imread(image_path);
+        CameraInfo cam_info(uid, R, T, FovX, FovY, img, image_name, image_path, width, height);
         camera_infos.push_back(cam_info);
     }
 }
