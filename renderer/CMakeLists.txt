@@ -4,16 +4,23 @@ cmake_minimum_required(VERSION 3.15.4)
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ./bin)
 # enable compile commands to help VSCode intellisense
 add_definitions(-DCMAKE_EXPORT_COMPILE_COMMANDS=ON)
+add_compile_options(-std=c++11)
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
 
 project(renderer)
 
 # on build, copy the ./src/resources directory to ./bin/resources
 # (allows you to keep relative pathnames wrt resource files)
-add_custom_target(copy-files ALL
+add_custom_target(copy-resources ALL
 COMMAND ${CMAKE_COMMAND} -E copy_directory
 ${CMAKE_SOURCE_DIR}/src/resources
 ${CMAKE_BINARY_DIR}/bin/resources
+)
+
+add_custom_target(copy-data ALL
+COMMAND ${CMAKE_COMMAND} -E copy_directory
+${CMAKE_SOURCE_DIR}/src/data
+${CMAKE_BINARY_DIR}/bin/data
 )
 
 # append all *.cpp files in ./src/ recursively to SOURCES env var

@@ -1,29 +1,25 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include <iostream>
+#include <string>
+#include <vector>
 
-#include "main.h"
-#include "lib.h"
+#include "FileReader.h"
+#include "image.h"
+#include "camera.h"
 
 int main(int argc, char **argv) {
-    printf("Hello World! Header var is %f\n", MAIN_H_INCLUDED);
-
-    FILE *f = fopen("./resources/data.dat", "r");
-
-    if(f == NULL) {
-        fprintf(stderr, "Unable to open ./resources/data.dat!\n");
-        exit(EXIT_FAILURE);
+    if(argc < 2) {
+        std::cerr << "Missing project name. Choose from {drjohnson, playroom, train, truck}" << std::endl;
+        return 1;  // Return with error code 1
     }
 
-    char buf[1024];
+    std::string file_path = std::string("data/") + argv[1] + std::string("/sparse/0/");
 
-    int len = fread(buf, sizeof(char), 1024, f);
-    buf[len] = 0;
+    std::vector<Image> images;
+    std::vector<Camera> cameras;
 
-    printf("./resources/data.dat contains:\n\t%s\n", buf);
+    FileReader file(file_path, &images, &cameras);
+    file.read_data();
 
-    int a = 120, b = 80;
-
-    printf("Calling example_fn from lib.cpp with arguments %d and %d, received %d\n", a, b, example_fn(a, b));
-    
-    return 0;
+    std::cout << "Number of images: " << images.size() << std::endl;
+    std::cout << "Number of camera: " << cameras.size() << std::endl;
 }
