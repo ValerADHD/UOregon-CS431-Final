@@ -8,6 +8,12 @@
 
 #include <cstdint>
 
+template <typename T>
+using Vec = std::vector<T>;
+
+template <typename T>
+using Mat = std::vector<std::vector<T>>;
+
 class Camera {
   public:
 
@@ -16,7 +22,7 @@ class Camera {
            std::string name, 
            unsigned long long width,
            unsigned long long height,
-           std::vector<double> params) :
+           Vec<double> params) :
              camera_id(id),
              model_name(name),
              width(width),
@@ -28,14 +34,14 @@ class Camera {
     std::string getName() const { return model_name; }
     unsigned long long getWidth() const { return width; }
     unsigned long long getHeight() const { return height; }
-    std::vector<double> getParams() const { return params; }
+    Vec<double> getParams() const { return params; }
 
   private:
     uint32_t camera_id;
     std::string model_name;
     unsigned long long width;
     unsigned long long height;
-    std::vector<double> params;
+    Vec<double> params;
 };
 
 
@@ -44,8 +50,8 @@ class CameraInfo {
 
     CameraInfo(
             uint32_t uid, 
-            std::vector<std::vector<double>> R, 
-            std::vector<double> T, 
+            Mat<double> R, 
+            Vec<double> T, 
             double FovX, 
             double FovY, 
             cv::Mat image,
@@ -65,10 +71,13 @@ class CameraInfo {
               height(height) {}
 
 
+    Mat<double> getR() { return R; }
+    Vec<double> getT() { return T; }
+
   private:
     uint32_t uid;
-    std::vector<std::vector<double>> R;
-    std::vector<double> T;
+    Mat<double> R;
+    Vec<double> T;
     double FovX;
     double FovY;
     cv::Mat image;

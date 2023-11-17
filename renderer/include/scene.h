@@ -9,17 +9,19 @@
 #include "image.h"
 #include "camera.h"
 
+template <typename T>
+using Mat = std::vector<std::vector<T>>;
+
 class Scene {
   public:
-
-    // Constructor
 
     // Methods
     void generate_camera_infos(std::vector<Image>* images,
             std::vector<Camera>* cameras);
+    void generate_nerf_ppnorm();
 
   private:
-    std::vector<CameraInfo> camera_infos;
+    std::vector<CameraInfo> train_cam_infos;
     
 };
 

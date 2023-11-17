@@ -27,4 +27,5 @@ int main(int argc, char **argv) {
 
     Scene scene;
     scene.generate_camera_infos(&images, &cameras);
+    scene.generate_nerf_ppnorm();
 }
