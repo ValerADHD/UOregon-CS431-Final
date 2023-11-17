@@ -7,13 +7,16 @@
 #include "image.h"
 #include "camera.h"
 
+template <typename T>
+using Vec = std::vector<T>;
+
 class FileReader {
   public:
 
     // Constructer
     FileReader(const std::string& directory, 
-            std::vector<Image>* images,
-            std::vector<Camera>* cameras);
+            Vec<Image>* images,
+            Vec<Camera>* cameras);
 
     // Methods
     void read_data(const std::string& data_dir); 
@@ -27,8 +30,8 @@ class FileReader {
 
   private:
     std::string data_directory;
-    std::vector<Image>* image_list;
-    std::vector<Camera>* camera_list;
+    Vec<Image>* image_list;
+    Vec<Camera>* camera_list;
 };
 
 #endif

@@ -9,12 +9,15 @@
 #include "image.h"
 #include "camera.h"
 
+template <typename T>
+using Vec = std::vector<T>;
+
 /*
  *  Constructor
  */
 FileReader::FileReader(const std::string& directory,
-                        std::vector<Image>* images,
-                        std::vector<Camera>* cameras)
+                        Vec<Image>* images,
+                        Vec<Camera>* cameras)
 {
     data_directory = directory;
     image_list = images;
@@ -56,13 +59,11 @@ void FileReader::read_extrinsic_file(const std::string& file_path, const std::st
         exit(1);
     }
 
-    // std::cout << "Num images: " << num_reg_images << std::endl;
-
     for (int i = 0; i < num_reg_images; i++) {
 
         uint32_t image_id = readNextBytes<uint32_t>(fid);
-        std::vector<double> qvec = readBinaryFile<double>(fid, 4);
-        std::vector<double> tvec = readBinaryFile<double>(fid, 3);
+        Vec<double> qvec = readBinaryFile<double>(fid, 4);
+        Vec<double> tvec = readBinaryFile<double>(fid, 3);
         uint32_t camera_id = readNextBytes<uint32_t>(fid);
 
         std::string image_name = "";
@@ -75,34 +76,15 @@ void FileReader::read_extrinsic_file(const std::string& file_path, const std::st
         uint32_t num_2d_points = readNextBytes<uint32_t>(fid);
         readNextBytes<int>(fid);
 
-        std::vector<double> xs;
-        std::vector<double> ys;
-        std::vector<long long> p3ds;
+        Vec<double> xs;
+        Vec<double> ys;
+        Vec<long long> p3ds;
 
         for (int j = 0; j < num_2d_points; j++) {
             xs.push_back(readNextBytes<double>(fid));
             ys.push_back(readNextBytes<double>(fid));
             p3ds.push_back(readNextBytes<long long>(fid));
         }
-
-    /*   
-        std::cout << "Image ID: " << image_id << std::endl;
-        std::cout << "q vec: [";
-        for (int i = 0; i< 4; i++) {
-            std::cout << qvec[i] << " ";
-        }
-        std::cout << "]" << std::endl;
-
-        std::cout << "t vec: [";
-        for (int i = 0; i< 3; i++) {
-            std::cout << tvec[i] << " ";
-        }
-        std::cout << "]" << std::endl;
-        std::cout << "Camera ID: " << camera_id << std::endl;
-
-        std::cout << "Image Name: " << imageName << std::endl;
-        std::cout << "Num 2D Points: " << num_2d_points << std::endl;
-    */
 
         std::string image_path = data_dir + std::string("/images/") + image_name;
         Image img(image_id, qvec, tvec, camera_id, image_name, image_path, xs, ys, p3ds);
@@ -124,8 +106,6 @@ void FileReader::read_intrinsic_file(const std::string& file_path)
         exit(1);
     }
 
-    // std::cout << "Num cameras: " << num_cameras << std::endl;
-
     for (int i = 0; i < num_cameras; i++) {
         uint32_t camera_id = readNextBytes<uint32_t>(fid);
         uint32_t model_id = readNextBytes<uint32_t>(fid);
@@ -144,62 +124,17 @@ void FileReader::read_intrinsic_file(const std::string& file_path)
                 model_name = std::string("PINHOLE");
                 num_params = 4;
                 break;
-            case 2:
-                model_name = std::string("SIMPLE_RADIAL");
-                num_params = 4;
-                break;
-            case 3:
-                model_name = std::string("RADIAL");
-                num_params = 5;
-                break;
-            case 4:
-                model_name = std::string("OPENCV");
-                num_params = 8;
-                break;
-            case 5:
-                model_name = std::string("OPENCV_FISHEYE");
-                num_params = 8;
-                break;
-            case 6:
-                model_name = std::string("FULL_OPENCV");
-                num_params = 12;
-                break;
-            case 7:
-                model_name = std::string("FOV");
-                num_params = 5;
-                break;
-            case 8:
-                model_name = std::string("SIMPLE_RADIAL_FISHEYE");
-                num_params = 4;
-                break;
-            case 9:
-                model_name = std::string("RADIAL_FISHEYE");
-                num_params = 5;
-                break;
-            case 10:
-                model_name = std::string("THIN_PRISM_FISHEYE");
-                num_params = 12;
-                break;
             default:
                 model_name = std::string("UNDEFINED");
                 num_params = 0;
                 break;
         }
        
-        std::vector<double> params;
+        Vec<double> params;
         for (int j = 0; j < num_params; j++) {
             params.push_back(readNextBytes<double>(fid));
         }
 
-    /*
-        std::cout << "Camera ID: " << camera_id << std::endl;
-        std::cout << "Model ID: " << model_id << std::endl;
-        std::cout << "Model name: " << model_name << std::endl;
-        std::cout << "Num params: " << num_params << std::endl;
-        std::cout << "Width: " << width << std::endl;
-        std::cout << "Height: " << height << std::endl;
-    */
-     
         Camera camera(camera_id, model_name, width, height, params);
         camera_list->push_back(camera);
     }
