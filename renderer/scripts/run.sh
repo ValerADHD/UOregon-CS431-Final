@@ -1,6 +1,6 @@
 pushd ../build/bin
-./out drjohnson
+#./out drjohnson 
 #./out playroom
-#./out train
+./out train
 #./out truck
 popd

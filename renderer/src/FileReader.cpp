@@ -24,17 +24,17 @@ FileReader::FileReader(const std::string& directory,
 /*
  *  Read data from data directory
  */
-void FileReader::read_data()
+void FileReader::read_data(const std::string& data_dir)
 {
     std::cout << "Using data directory: "
-              << data_directory
+              << data_dir
               << std::endl; 
 
     std::string extrinsic_path = data_directory + std::string("images.bin"); 
     std::string intrinsic_path = data_directory + std::string("cameras.bin"); 
 
     std::cout << "Loading extrinsic file... ";
-    read_extrinsic_file(extrinsic_path);
+    read_extrinsic_file(extrinsic_path, data_dir);
     std::cout << "Done!" << std::endl;
 
     std::cout << "Loading intrinsic file... ";
@@ -45,7 +45,7 @@ void FileReader::read_data()
 /*
  *  Read extrinsic file
  */
-void FileReader::read_extrinsic_file(const std::string& file_path) 
+void FileReader::read_extrinsic_file(const std::string& file_path, const std::string& data_dir) 
 {
     std::ifstream fid(file_path.c_str(), std::ios::binary);
     unsigned long long num_reg_images;
@@ -59,6 +59,7 @@ void FileReader::read_extrinsic_file(const std::string& file_path)
     // std::cout << "Num images: " << num_reg_images << std::endl;
 
     for (int i = 0; i < num_reg_images; i++) {
+
         uint32_t image_id = readNextBytes<uint32_t>(fid);
         std::vector<double> qvec = readBinaryFile<double>(fid, 4);
         std::vector<double> tvec = readBinaryFile<double>(fid, 3);
@@ -103,7 +104,8 @@ void FileReader::read_extrinsic_file(const std::string& file_path)
         std::cout << "Num 2D Points: " << num_2d_points << std::endl;
     */
 
-        Image img(image_id, qvec, tvec, camera_id, image_name, xs, ys, p3ds);
+        std::string image_path = data_dir + std::string("/images/") + image_name;
+        Image img(image_id, qvec, tvec, camera_id, image_name, image_path, xs, ys, p3ds);
         image_list->push_back(img);
     }
 }

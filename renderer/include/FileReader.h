@@ -16,8 +16,8 @@ class FileReader {
             std::vector<Camera>* cameras);
 
     // Methods
-    void read_data(); 
-    void read_extrinsic_file(const std::string& file_path); 
+    void read_data(const std::string& data_dir); 
+    void read_extrinsic_file(const std::string& file_path, const std::string& data_dir); 
     void read_intrinsic_file(const std::string& file_path);
 
     template<typename T>

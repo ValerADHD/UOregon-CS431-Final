@@ -36,4 +36,41 @@ class Camera {
     std::vector<double> params;
 };
 
+
+class CameraInfo {
+  public:
+
+    CameraInfo(
+            uint32_t uid, 
+            std::vector<std::vector<double>> R, 
+            std::vector<double> T, 
+            double FovX, 
+            double FovY, 
+            std::string image_name, 
+            std::string image_path,
+            long long width, 
+            long long height) :
+              uid(uid),
+              R(R),
+              T(T),
+              FovX(FovX),
+              FovY(FovY),
+              image_name(image_name),
+              image_path(image_path),
+              width(width),
+              height(height) {}
+
+
+  private:
+    uint32_t uid;
+    std::vector<std::vector<double>> R;
+    std::vector<double> T;
+    double FovX;
+    double FovY;
+    std::string image_name;
+    std::string image_path;
+    long long width;
+    long long height;
+};
+
 #endif
