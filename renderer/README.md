@@ -20,7 +20,6 @@ This directory serves as the base for a CMake project. The instructions provided
    Alternatively, you can generate the Makefile in a new `build` directory and then proceed with the build:
 
    ```bash
-   module load cmake/3.15.4
    mkdir build && pushd build
    cmake .. && make
    popd
