@@ -48,6 +48,8 @@ int export_pnm(Image *img, char *path) {
         int write_base_idx = i * 3;
         float r = img->data[read_base_idx + 0], g = img->data[read_base_idx + 1], b = img->data[read_base_idx + 2];
         
+        //if(r != 0 || g != 0 || b != 0) printf("Nonzero pixel! X: %d Y: %d R: %f G: %f B: %f\n", i % img->width, i / img->width, r, g, b);
+
         //clamping range to (0->1) for visible values
         if(r < 0) r = 0; if(r > 1) r = 1;
         if(g < 0) g = 0; if(g > 1) g = 1;

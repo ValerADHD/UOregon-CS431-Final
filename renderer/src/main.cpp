@@ -1,29 +1,52 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
-#include "main.h"
-#include "lib.h"
+#include <cuda.h>
+#include <cuda_runtime.h>
+
+#include "glm/vec3.hpp"
+
+#include "image.h"
+#include "render.h"
+#include "model.h"
 
 int main(int argc, char **argv) {
-    printf("Hello World! Header var is %f\n", MAIN_H_INCLUDED);
+    printf("Hello world!\n");
 
-    FILE *f = fopen("./resources/data.dat", "r");
+    int width = 800, height = 512;
 
-    if(f == NULL) {
-        fprintf(stderr, "Unable to open ./resources/data.dat!\n");
-        exit(EXIT_FAILURE);
-    }
+    Model *mdl = load_model("./resources/bicycle_7000.ply");
+    GPUModel *gm = upload_model(mdl);
 
-    char buf[1024];
+    Image *img = create_image(width, height);
 
-    int len = fread(buf, sizeof(char), 1024, f);
-    buf[len] = 0;
+    PerspectiveCamera *cam;
+    cudaMalloc(&cam, sizeof(PerspectiveCamera));
+    camera_from_axis_angles(cam, 
+        glm::vec3(-3.003, 1.401, -2.228), glm::vec3(0.0820304748437, 0.884881930761, 0.160570291183), 90
+        //glm::vec3(0.36922905046275895, -1.098805384288247, -3.4042641920559777), 
+        //glm::vec3(-0.118682389136, 0.171042266695, -0.0401425727959), 90
+    );
 
-    printf("./resources/data.dat contains:\n\t%s\n", buf);
+    float* device_img_buf;
+    cudaMalloc(&device_img_buf, sizeof(float) * width * height * 4);
 
-    int a = 120, b = 80;
+    // gm->data_len = 10000;
+    render_call_handler(device_img_buf, width, height, cam, gm);
+    cudaDeviceSynchronize();
+    cudaError_t err = cudaGetLastError();
+    fprintf(stderr, "Last error: %s\n", cudaGetErrorString(err));
 
-    printf("Calling example_fn from lib.cpp with arguments %d and %d, received %d\n", a, b, example_fn(a, b));
-    
+    cudaMemcpy(img->data, device_img_buf, sizeof(float) * width * height * 4, cudaMemcpyDeviceToHost);
+    cudaFree(device_img_buf);
+    destroy_GPU_model(gm);
+    cudaFree(cam);
+
+    export_pnm(img, "test.pnm");
+
+    destroy_image(img);
+    destroy_model(mdl);
+
     return 0;
 }
