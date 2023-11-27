@@ -123,7 +123,7 @@ GPUModel *upload_model(Model *mdl) {
 
         glm::mat4 imat = glm::mat4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
         imat = glm::scale(imat, host.scale);
-        imat = imat * glm::toMat4(host.rot);
+        imat *= glm::toMat4(glm::normalize(host.rot));
         imat = glm::translate(imat, host.mean);
 
         if(i == 0) printf("Inverse Matrix: \n\t");

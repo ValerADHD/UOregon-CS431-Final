@@ -46,6 +46,7 @@ void camera_from_lookat(PerspectiveCamera *d_pc, glm::vec3 origin, glm::vec3 loo
 }
 
 #define TEST_FRUSTUM_PLANE_GENERATION
+#define TEST_FRUSTUM_PLANE_GENERATION_VERBOSE
 
 void generate_frustum_planes(PerspectiveCamera *cam, float numTilesX, float numTilesY, float **hPlanes, float **vPlanes) {
     PerspectiveCamera *c = new PerspectiveCamera(); //'cam' is on the GPU, we need a copy for the CPU
@@ -64,21 +65,21 @@ void generate_frustum_planes(PerspectiveCamera *cam, float numTilesX, float numT
         float uvY = min(1.0, (float)i / numTilesY);
         uvY = uvY * 2.0 - 1.0;
         
-        glm::vec3 ray1 = glm::normalize(cam->forward + cam->up * uvY + cam->right);
-        glm::vec3 ray2 = glm::normalize(cam->forward + cam->up * uvY - cam->right);
-        glm::vec3 planeNorm = glm::cross(ray1, ray2);
+        glm::vec3 ray1 = glm::normalize(c->forward + c->up * uvY + c->right);
+        glm::vec3 ray2 = glm::normalize(c->forward + c->up * uvY - c->right);
+        glm::vec3 planeNorm = glm::cross(ray2, ray1);
 
         horizontalFrustumPlanes[i * 3 + 0] = planeNorm.x;
         horizontalFrustumPlanes[i * 3 + 1] = planeNorm.y;
         horizontalFrustumPlanes[i * 3 + 2] = planeNorm.z;
     }
     //generate vertical frustum planes, left to right
-    for(int i = 0; i < numBinsY + 1; i++) {
+    for(int i = 0; i < numBinsX + 1; i++) {
         float uvX = min(1.0, (float)i / numTilesX);
         uvX = uvX * 2.0 - 1.0;
         
-        glm::vec3 ray1 = glm::normalize(cam->forward + cam->up + cam->right * uvX);
-        glm::vec3 ray2 = glm::normalize(cam->forward - cam->up + cam->right * uvX);
+        glm::vec3 ray1 = glm::normalize(c->forward + c->up + c->right * uvX);
+        glm::vec3 ray2 = glm::normalize(c->forward - c->up + c->right * uvX);
         glm::vec3 planeNorm = glm::cross(ray1, ray2);
 
         verticalFrustumPlanes[i * 3 + 0] = planeNorm.x;
@@ -87,7 +88,8 @@ void generate_frustum_planes(PerspectiveCamera *cam, float numTilesX, float numT
     }
 
 #ifdef TEST_FRUSTUM_PLANE_GENERATION
-    int num_tests_passed = 0;
+    int horizontal_tests_passed = 0;
+    int vertical_tests_passed = 0;
     for(int x = 0; x < numBinsX; x++) {
         for(int y = 0; y < numBinsY; y++) {
             //generate a point guaranteed to be inside the frustum for tile[x][y]
@@ -97,45 +99,93 @@ void generate_frustum_planes(PerspectiveCamera *cam, float numTilesX, float numT
                 uvYMax = min(1.0, (float)(y + 1) / numTilesY);
             float uvX = (uvXMin + uvXMax) / 2.0; uvX = uvX * 2.0 - 1.0;
             float uvY = (uvYMin + uvYMax) / 2.0; uvY = uvY * 2.0 - 1.0;
-            
-            glm::vec3 point = cam->forward + cam->right * uvX + cam->up * uvY;
+            glm::vec3 point = c->origin + c->forward + c->right * uvX + c->up * uvY;
 
             glm::vec3 leftPlaneNormal = glm::vec3(verticalFrustumPlanes[x * 3 + 0], verticalFrustumPlanes[x * 3 + 1], verticalFrustumPlanes[x * 3 + 2]);
             glm::vec3 rightPlaneNormal = -glm::vec3(verticalFrustumPlanes[x * 3 + 3], verticalFrustumPlanes[x * 3 + 4], verticalFrustumPlanes[x * 3 + 5]);
             glm::vec3 bottomPlaneNormal = glm::vec3(horizontalFrustumPlanes[y * 3 + 0], horizontalFrustumPlanes[y * 3 + 1], horizontalFrustumPlanes[y * 3 + 2]);
             glm::vec3 topPlaneNormal = -glm::vec3(horizontalFrustumPlanes[y * 3 + 3], horizontalFrustumPlanes[y * 3 + 4], horizontalFrustumPlanes[y * 3 + 5]);
         
-            float leftPlaneDist = glm::dot(-leftPlaneNormal, cam->origin - point);
-            float rightPlaneDist = glm::dot(-rightPlaneNormal, cam->origin - point);
-            float bottomPlaneDist = glm::dot(-bottomPlaneNormal, cam->origin - point);
-            float topPlaneDist = glm::dot(-topPlaneNormal, cam->origin - point);
 
-            if(leftPlaneDist > 0 && rightPlaneDist > 0 && bottomPlaneDist > 0 && topPlaneDist > 0) {
-                num_tests_passed++;
+            float leftPlaneDist = glm::dot(-leftPlaneNormal, c->origin - point);
+            float rightPlaneDist = glm::dot(-rightPlaneNormal, c->origin - point);
+            float bottomPlaneDist = glm::dot(-bottomPlaneNormal, c->origin - point);
+            float topPlaneDist = glm::dot(-topPlaneNormal, c->origin - point);
+
+            if(leftPlaneDist > 0 && rightPlaneDist > 0) {
+                vertical_tests_passed++;
             }
+            if(topPlaneDist > 0 && bottomPlaneDist > 0) {
+                horizontal_tests_passed++;
+            }
+#ifdef TEST_FRUSTUM_PLANE_GENERATION_VERBOSE
+            printf("Testing frustums for tile x: %d y: %d\n", x, y);
+            printf("\tU: %f V: %f\n", uvX, uvY);
+            printf("\tPoint ended up at x: %f y: %f z: %f\n", point.x, point.y, point.z);
+            printf("\tFrustum Planes: (all with origin x: %f y: %f z: %f)\n", c->origin.x, c->origin.y, c->origin.z);
+            printf("\t\tLeft: nx: %f ny: %f nz: %f\n", leftPlaneNormal.x, leftPlaneNormal.y, leftPlaneNormal.z);
+            printf("\t\t\tDistance from left plane: %f\n", leftPlaneDist);
+            printf("\t\tRight: nx: %f ny: %f nz: %f\n", rightPlaneNormal.x, rightPlaneNormal.y, rightPlaneNormal.z);
+            printf("\t\t\tDistance from right plane: %f\n", rightPlaneDist);
+            printf("\t\tBottom: nx: %f ny: %f nz: %f\n", bottomPlaneNormal.x, bottomPlaneNormal.y, bottomPlaneNormal.z);
+            printf("\t\t\tDistance from bottom plane: %f\n", bottomPlaneDist);
+            printf("\t\tTop: nx: %f ny: %f nz: %f\n", topPlaneNormal.x, topPlaneNormal.y, topPlaneNormal.z);
+            printf("\t\t\tDistance from top plane: %f\n", topPlaneDist);
+#endif
         }
     }
-    if(num_tests_passed == numBinsX * numBinsY) {
-        fprintf(stderr, "Success! The generated frustum planes worked for all %d tests\n", num_tests_passed);
+    if(horizontal_tests_passed == numBinsX * numBinsY && vertical_tests_passed == numBinsX * numBinsY) {
+        fprintf(stderr, "Success! The generated frustum planes worked for all %d tests\n", numBinsX * numBinsY);
     } else {
-        fprintf(stderr, "Failure! The generated frustum planes failed on %d tests\n", numBinsX * numBinsY - num_tests_passed);
+        fprintf(stderr, "Failure! The generated frustum planes failed on %d horizontal tests and %d vertical tests\n", numBinsX * numBinsY - horizontal_tests_passed, numBinsX * numBinsY - vertical_tests_passed);
     }
 #endif
 
     stat = cudaMalloc(hPlanes, sizeof(float) * 3 * (numBinsY + 1));
     if(stat != cudaSuccess) fprintf(stderr, "Unable to allocate memory for frustum planes: %s\n", cudaGetErrorString(stat));
-    stat = cudaMalloc(vPlanes, sizeof(float) * 3 * (numBinsY + 1));
+    stat = cudaMalloc(vPlanes, sizeof(float) * 3 * (numBinsX + 1));
     if(stat != cudaSuccess) fprintf(stderr, "Unable to allocate memory for frustum planes: %s\n", cudaGetErrorString(stat));
     stat = cudaMemcpy(*hPlanes, horizontalFrustumPlanes, sizeof(float) * 3 * (numBinsY + 1), cudaMemcpyHostToDevice);
-    if(stat != cudaSuccess) fprintf(stderr, "Unable to upload frustum planes to GPU: %s\n", cudaGetErrorString(stat));
+    if(stat != cudaSuccess) fprintf(stderr, "Unable to upload horizontal frustum planes to GPU: %s\n", cudaGetErrorString(stat));
     stat = cudaMemcpy(*vPlanes, verticalFrustumPlanes, sizeof(float) * 3 * (numBinsX + 1), cudaMemcpyHostToDevice);
-    if(stat != cudaSuccess) fprintf(stderr, "Unable to upload frustum planes to GPU: %s\n", cudaGetErrorString(stat));
+    if(stat != cudaSuccess) fprintf(stderr, "Unable to upload vertical frustum planes to GPU: %s\n", cudaGetErrorString(stat));
     
     free(horizontalFrustumPlanes);
     free(verticalFrustumPlanes);
 }
 
+
+#define MAX_BIN_SIZE 8192
+
+#define PRINT_BIN_SIZES
+
 void render_call_handler(float *img_buffer, unsigned int width, unsigned int height, PerspectiveCamera *cam, GPUModel *gm) {
+    printf("Beginning render call!\n");
+    float numTilesX = width / 32.0, numTilesY = height / 32.0;
+    uint32_t numBinsX = ceil(numTilesX), numBinsY = ceil(numTilesY);
+
+    float *horizontalFrustumPlanes, *verticalFrustumPlanes;
+    generate_frustum_planes(cam, numTilesX, numTilesY, &horizontalFrustumPlanes, &verticalFrustumPlanes);
+
+    uint32_t *bins, *binIdxs;
+    cudaError_t stat = cudaMalloc(&bins, sizeof(uint32_t) * numBinsX * numBinsY * MAX_BIN_SIZE);
+    if(stat != cudaSuccess) fprintf(stderr, "Unable to create GPU bin array: %s\n", cudaGetErrorString(stat));
+    stat = cudaMalloc(&binIdxs, sizeof(uint32_t) * numBinsX * numBinsY);
+    if(stat != cudaSuccess) fprintf(stderr, "Unable to create GPU bin index array: %s\n", cudaGetErrorString(stat));
+
+    binGaussians<<<(gm->data_len + 1024 - 1) / 1024, 1024>>>(cam, gm->data, gm->data_len, numTilesX, numTilesY, horizontalFrustumPlanes, verticalFrustumPlanes, bins, binIdxs);
+
+#ifdef PRINT_BIN_SIZES
+    //unfinished
+    uint32_t *debugBinSizes = (uint32_t *)malloc(sizeof(uint32_t) * numBinsX * numBinsY);
+    stat = cudaMemcpy(debugBinSizes, binIdxs, sizeof(uint32_t) * numBinsX * numBinsY, cudaMemcpyDeviceToHost);
+    if(stat != cudaSuccess) fprintf(stderr, "Unable to download bin size array: %s\n", cudaGetErrorString(stat));
+    for(int y = 0; y < numBinsY; y++) for(int x = 0; x < numBinsX; x++) {
+        printf("Bin X: %d Y: %d has %d elements\n", x, y, debugBinSizes[y * numBinsX + x]);
+    }
+    free(debugBinSizes);
+#endif
+
     dim3 blockDim;
     blockDim.x = 32; blockDim.y = 32; blockDim.z = 1;
 
@@ -144,11 +194,15 @@ void render_call_handler(float *img_buffer, unsigned int width, unsigned int hei
     numBlocks.y = (height + blockDim.y - 1) / blockDim.y;
     numBlocks.z = 1;
 
-    float *horizontalFrustumPlanes, *verticalFrustumPlanes;
-    generate_frustum_planes(cam, width / 32.0, height / 32.0, &horizontalFrustumPlanes, &verticalFrustumPlanes);
-    cudaFree(horizontalFrustumPlanes); cudaFree(verticalFrustumPlanes);
+    sortBins<<<numBlocks, blockDim>>>(cam, gm->data, gm->data_len, numTilesX, numTilesY, bins, binIdxs);
 
-    render<<<numBlocks, blockDim>>>(img_buffer, width, height, cam, gm->data, gm->data_len);
+    render<<<numBlocks, blockDim>>>(
+        img_buffer, width, height, 
+        cam, 
+        gm->data, gm->data_len,
+        numBinsX, numBinsY,
+        bins, binIdxs
+    );
 }
 
 __forceinline__ __device__ glm::mat4 make_mat4(float mat[4][4]) {
@@ -175,24 +229,27 @@ __global__ void binGaussians(
     GPUGaussian *gaussians, uint32_t n,
     float numTilesX, float numTilesY, //number of tiles for the whole screen. Can be non-integer if tiles are partially off-screen
     float *horizontalFrustumPlanes, float *verticalFrustumPlanes,
-    uint32_t ***bins, //actual bins, uint32_t[numBinsX][numBinsY][MAX_BIN_SIZE]
-    uint32_t **binIndexes //index to the next open element in each bin, uint32_t[numBinsX][numBinsY]
+    uint32_t *bins, //actual bins, uint32_t[numBinsX][numBinsY][MAX_BIN_SIZE]
+    uint32_t *binIndexes //index to the next open element in each bin, uint32_t[numBinsX][numBinsY]
 ) {
     uint32_t numBinsX = ceil(numTilesX), numBinsY = ceil(numTilesY);
 
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
     for(int i = tid; i < n; i += blockDim.x * gridDim.x) {
-        //all planes are gauranteed to intersect the camera origin, so we will use that as their origins
+        //all planes are gauranteed to intersect the camera position, so we will use that as their origins
         glm::vec3 planeOrigin = cam->origin;
         
         glm::mat4 imat = make_mat4(gaussians[i].imat);
+        //non-uniform scaling matrices do not properly handle normal vectors, instead use the inverse-transpose
+        glm::mat3 normal_imat = glm::transpose(imat);
+        normal_imat = glm::inverse(normal_imat);
         
         //transform the origin into the gaussian's model space
         planeOrigin = imat * glm::vec4(planeOrigin, 1.0);
 
         //loop through each bin, determine if the gaussian is inside that frustum
-        for(int x = 0; x < numBinsX; x++) {
-            for(int y = 0; y < numBinsY; y++) {
+        for(int y = 0; y < numBinsY; y++) {
+            for(int x = 0; x < numBinsX; x++) {
                 //get all of the planes for the edges of this tile's frustum
                 glm::vec3 leftPlaneNormal = glm::vec3(verticalFrustumPlanes[x * 3 + 0], verticalFrustumPlanes[x * 3 + 1], verticalFrustumPlanes[x * 3 + 2]);
                 glm::vec3 rightPlaneNormal = -glm::vec3(verticalFrustumPlanes[x * 3 + 3], verticalFrustumPlanes[x * 3 + 4], verticalFrustumPlanes[x * 3 + 5]);
@@ -200,10 +257,10 @@ __global__ void binGaussians(
                 glm::vec3 topPlaneNormal = -glm::vec3(horizontalFrustumPlanes[y * 3 + 3], horizontalFrustumPlanes[y * 3 + 4], horizontalFrustumPlanes[y * 3 + 5]);
                 
                 //transform them into the gaussian's model space, so we can simply test against the unit sphere
-                leftPlaneNormal = glm::vec3(glm::normalize(imat * glm::vec4(leftPlaneNormal, 0.0)));
-                rightPlaneNormal = glm::vec3(glm::normalize(imat * glm::vec4(rightPlaneNormal, 0.0)));
-                bottomPlaneNormal = glm::vec3(glm::normalize(imat * glm::vec4(bottomPlaneNormal, 0.0)));
-                topPlaneNormal = glm::vec3(glm::normalize(imat * glm::vec4(topPlaneNormal, 0.0)));
+                leftPlaneNormal = normal_imat * leftPlaneNormal;
+                rightPlaneNormal = normal_imat * rightPlaneNormal;
+                bottomPlaneNormal = normal_imat * bottomPlaneNormal;
+                topPlaneNormal = normal_imat * topPlaneNormal;
 
                 //get the signed distance from the origin to the plane
                 float leftPlaneDist = originDistanceToPlane(planeOrigin, leftPlaneNormal);
@@ -217,11 +274,50 @@ __global__ void binGaussians(
                 //the frustum
                 if(leftPlaneDist > -1 && rightPlaneDist > -1 && topPlaneDist > -1 && bottomPlaneDist > -1) {
                     //inside frustum
-                    uint32_t binIdx = atomicAdd(&(binIndexes[x][y]), 1);
-                    bins[x][y][binIdx] = i;
+                    if(binIndexes[y * numBinsX + x] < MAX_BIN_SIZE - 1) { 
+                        uint32_t binIdx = atomicAdd(&(binIndexes[y * numBinsX + x]), 1);
+                        if(binIdx < MAX_BIN_SIZE) bins[(y * numBinsX + x) * MAX_BIN_SIZE + binIdx] = i;
+                    }
                 }
             }
         }
+    }
+}
+
+__global__ void sortBins(
+    PerspectiveCamera *cam,
+    GPUGaussian *gaussians, uint32_t n,
+    float numTilesX, float numTilesY,
+    uint32_t *bins, uint32_t *binSizes
+) {
+    uint32_t numBinsX = ceil(numTilesX), numBinsY = ceil(numTilesY);
+
+    //each thread block gets their own bin
+    uint32_t binIdxX = blockIdx.x, binIdxY = numBinsY - blockIdx.y;
+    uint32_t *block_bin = &(bins[(binIdxY * numBinsX + binIdxX) * MAX_BIN_SIZE]);
+    uint32_t block_bin_size = min(binSizes[binIdxY * numBinsX + binIdxX], MAX_BIN_SIZE);
+
+    __shared__ float keys[MAX_BIN_SIZE];
+
+    uint32_t tid = threadIdx.x + threadIdx.y * blockDim.x;
+    for(int i = tid; i < block_bin_size; i += blockDim.x * blockDim.y) {
+        keys[i] = glm::length(cam->origin - glm::vec3(make_vec4(gaussians[i].imat[3])));
+    }
+    
+    //even odd sort
+    for(int i = 0; i < block_bin_size; i++) {
+        int parity = i & 1;
+        for(int j = tid * 2 + parity; j < block_bin_size - 1; j += blockDim.x * blockDim.y * 2) {
+            if(keys[j] < keys[j + 1]) {
+                float tmp = keys[j];
+                keys[j] = keys[j + 1];
+                keys[j + 1] = tmp;
+                uint32_t t = block_bin[j];
+                block_bin[j] = block_bin[j + 1];
+                block_bin[j + 1] = t;
+            }
+        }
+        __syncthreads();
     }
 }
 
@@ -267,11 +363,22 @@ __device__ glm::vec4 raymarch_gaussian(glm::vec3 ray_origin, glm::vec3 ray_dir, 
 
 __forceinline__ __device__ float sigmoid(float x) { return 1.0 / (1.0 + exp(-x)); }
 
-__global__ void render(float *img_buffer, unsigned int width, unsigned int height, PerspectiveCamera *cam, GPUGaussian *gaussians, uint32_t n) {
+__global__ void render(
+    float *img_buffer, unsigned int width, unsigned int height, 
+    PerspectiveCamera *cam, 
+    GPUGaussian *gaussians, uint32_t n,
+    uint32_t numBinsX, uint32_t numBinsY,
+    uint32_t *bins, uint32_t *bin_sizes
+) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
 
     if(x >= width || y >= height) return;
+
+    //each thread block gets their own bin
+    uint32_t binIdxX = blockIdx.x, binIdxY = numBinsY - blockIdx.y;
+    uint32_t *block_bin = &(bins[(binIdxY * numBinsX + binIdxX) * MAX_BIN_SIZE]);
+    uint32_t block_bin_size = min(bin_sizes[binIdxY * numBinsX + binIdxX], MAX_BIN_SIZE);
 
     //assign each pixel a UV value -1 -> 1, left to right / bottom to top
     glm::vec2 uv = glm::vec2((float)x / width, (float)y / height);
@@ -291,17 +398,21 @@ __global__ void render(float *img_buffer, unsigned int width, unsigned int heigh
         -14.838394,-29.281708,-108.986649,0.000000, 
         0.019985,-0.316502,-0.649367,1.000000
     );
-    for(int i = 0; i < n; i++) {
-        glm::vec4 gaussian_color = make_vec4(gaussians[i].color);
+    for(int i = 0; i < block_bin_size; i++) {
+        uint32_t idx = block_bin[i];
+        GPUGaussian g = gaussians[idx];
+        glm::vec4 gaussian_color = make_vec4(g.color);
         gaussian_color.a = sigmoid(gaussian_color.a);
-        gaussian_color.r *= -0.28209479177387814; gaussian_color.g *= -0.28209479177387814; gaussian_color.b *= -0.28209479177387814;
-        glm::vec4 c = raymarch_gaussian(o, ray, make_mat4(gaussians[i].imat), gaussian_color);
+        gaussian_color.r *= 0.28209479177387814; gaussian_color.g *= 0.28209479177387814; gaussian_color.b *= 0.28209479177387814;
+        glm::vec4 c = raymarch_gaussian(o, ray, make_mat4(g.imat), gaussian_color);
         color.x += c.x * (1.0 - color.w);
         color.y += c.y * (1.0 - color.w);
         color.z += c.z * (1.0 - color.w);
         color.w += c.w * (1.0 - color.w);
     }
     
+    //color.x += 0.5; color.y += 0.5; color.z += 0.5;
+
     int idx = y * width * 4 + x * 4;
 
     img_buffer[idx + 0] = color.x;
