@@ -46,7 +46,7 @@ void camera_from_lookat(PerspectiveCamera *d_pc, glm::vec3 origin, glm::vec3 loo
 }
 
 #define TEST_FRUSTUM_PLANE_GENERATION
-#define TEST_FRUSTUM_PLANE_GENERATION_VERBOSE
+//#define TEST_FRUSTUM_PLANE_GENERATION_VERBOSE
 
 void generate_frustum_planes(PerspectiveCamera *cam, float numTilesX, float numTilesY, float **hPlanes, float **vPlanes) {
     PerspectiveCamera *c = new PerspectiveCamera(); //'cam' is on the GPU, we need a copy for the CPU
@@ -155,13 +155,13 @@ void generate_frustum_planes(PerspectiveCamera *cam, float numTilesX, float numT
 }
 
 
-#define MAX_BIN_SIZE 8192
+#define MAX_BIN_SIZE 12288
 
 #define PRINT_BIN_SIZES
 
 void render_call_handler(float *img_buffer, unsigned int width, unsigned int height, PerspectiveCamera *cam, GPUModel *gm) {
     printf("Beginning render call!\n");
-    float numTilesX = width / 32.0, numTilesY = height / 32.0;
+    float numTilesX = width / 16.0, numTilesY = height / 16.0;
     uint32_t numBinsX = ceil(numTilesX), numBinsY = ceil(numTilesY);
 
     float *horizontalFrustumPlanes, *verticalFrustumPlanes;
@@ -174,7 +174,8 @@ void render_call_handler(float *img_buffer, unsigned int width, unsigned int hei
     if(stat != cudaSuccess) fprintf(stderr, "Unable to create GPU bin index array: %s\n", cudaGetErrorString(stat));
 
     binGaussians<<<(gm->data_len + 1024 - 1) / 1024, 1024>>>(cam, gm->data, gm->data_len, numTilesX, numTilesY, horizontalFrustumPlanes, verticalFrustumPlanes, bins, binIdxs);
-
+    cudaDeviceSynchronize();
+    
 #ifdef PRINT_BIN_SIZES
     //unfinished
     uint32_t *debugBinSizes = (uint32_t *)malloc(sizeof(uint32_t) * numBinsX * numBinsY);
@@ -187,7 +188,7 @@ void render_call_handler(float *img_buffer, unsigned int width, unsigned int hei
 #endif
 
     dim3 blockDim;
-    blockDim.x = 32; blockDim.y = 32; blockDim.z = 1;
+    blockDim.x = 16; blockDim.y = 16; blockDim.z = 1;
 
     dim3 numBlocks;
     numBlocks.x = (width + blockDim.x - 1) / blockDim.x;
@@ -195,6 +196,7 @@ void render_call_handler(float *img_buffer, unsigned int width, unsigned int hei
     numBlocks.z = 1;
 
     sortBins<<<numBlocks, blockDim>>>(cam, gm->data, gm->data_len, numTilesX, numTilesY, bins, binIdxs);
+    cudaDeviceSynchronize();
 
     render<<<numBlocks, blockDim>>>(
         img_buffer, width, height, 
@@ -234,6 +236,9 @@ __global__ void binGaussians(
 ) {
     uint32_t numBinsX = ceil(numTilesX), numBinsY = ceil(numTilesY);
 
+    float far = 1.0;
+    float near = 0.01;
+
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
     for(int i = tid; i < n; i += blockDim.x * gridDim.x) {
         //all planes are gauranteed to intersect the camera position, so we will use that as their origins
@@ -246,10 +251,17 @@ __global__ void binGaussians(
         
         //transform the origin into the gaussian's model space
         planeOrigin = imat * glm::vec4(planeOrigin, 1.0);
+        glm::vec3 farPlaneOrigin = imat * glm::vec4(cam->origin + cam->forward * far, 1.0);
+        glm::vec3 farPlaneNormal = glm::normalize(normal_imat * -cam->forward);
+        glm::vec3 nearPlaneOrigin = imat * glm::vec4(cam->origin + cam->forward * near, 1.0);
+        glm::vec3 nearPlaneNormal = glm::normalize(normal_imat * cam->forward);
 
         //loop through each bin, determine if the gaussian is inside that frustum
-        for(int y = 0; y < numBinsY; y++) {
-            for(int x = 0; x < numBinsX; x++) {
+        for(int y0 = 0; y0 < numBinsY; y0++) {
+            for(int x0 = 0; x0 < numBinsX; x0++) {
+                //avoid all of the threads working on the same frustum at a time
+                int x = x0 + tid; x %= numBinsX;
+                int y = y0 + tid; y %= numBinsY;
                 //get all of the planes for the edges of this tile's frustum
                 glm::vec3 leftPlaneNormal = glm::vec3(verticalFrustumPlanes[x * 3 + 0], verticalFrustumPlanes[x * 3 + 1], verticalFrustumPlanes[x * 3 + 2]);
                 glm::vec3 rightPlaneNormal = -glm::vec3(verticalFrustumPlanes[x * 3 + 3], verticalFrustumPlanes[x * 3 + 4], verticalFrustumPlanes[x * 3 + 5]);
@@ -257,11 +269,10 @@ __global__ void binGaussians(
                 glm::vec3 topPlaneNormal = -glm::vec3(horizontalFrustumPlanes[y * 3 + 3], horizontalFrustumPlanes[y * 3 + 4], horizontalFrustumPlanes[y * 3 + 5]);
                 
                 //transform them into the gaussian's model space, so we can simply test against the unit sphere
-                leftPlaneNormal = normal_imat * leftPlaneNormal;
-                rightPlaneNormal = normal_imat * rightPlaneNormal;
-                bottomPlaneNormal = normal_imat * bottomPlaneNormal;
-                topPlaneNormal = normal_imat * topPlaneNormal;
-
+                leftPlaneNormal = glm::normalize(normal_imat * leftPlaneNormal);
+                rightPlaneNormal = glm::normalize(normal_imat * rightPlaneNormal);
+                bottomPlaneNormal = glm::normalize(normal_imat * bottomPlaneNormal);
+                topPlaneNormal = glm::normalize(normal_imat * topPlaneNormal);
                 //get the signed distance from the origin to the plane
                 float leftPlaneDist = originDistanceToPlane(planeOrigin, leftPlaneNormal);
                 float rightPlaneDist = originDistanceToPlane(planeOrigin, rightPlaneNormal);
@@ -338,7 +349,7 @@ __device__ void ray_unit_sphere_intersection(glm::vec3 ray_origin, glm::vec3 ray
 #define NUM_RAY_STEPS 3
 __device__ glm::vec4 raymarch_gaussian(glm::vec3 ray_origin, glm::vec3 ray_dir, glm::mat4 imat, glm::vec4 base_col) {
     glm::vec4 o = imat * glm::vec4(ray_origin, 1.0);
-    glm::vec4 rd = imat * glm::vec4(ray_dir, 0.0);
+    glm::vec3 rd = (imat * glm::vec4(ray_origin + ray_dir, 1.0)) - o;
     rd = glm::normalize(rd);
 
     glm::vec3 front_intersection, back_intersection;
@@ -411,7 +422,7 @@ __global__ void render(
         color.w += c.w * (1.0 - color.w);
     }
     
-    //color.x += 0.5; color.y += 0.5; color.z += 0.5;
+    color.x += 0.5; color.y += 0.5; color.z += 0.5;
 
     int idx = y * width * 4 + x * 4;
 

@@ -23,27 +23,33 @@ int main(int argc, char **argv) {
 
     PerspectiveCamera *cam;
     cudaMalloc(&cam, sizeof(PerspectiveCamera));
-    camera_from_axis_angles(cam, 
-        glm::vec3(-3.003, 1.401, -2.228), glm::vec3(0.0820304748437, 0.884881930761, 0.160570291183), 90
-        //glm::vec3(0.36922905046275895, -1.098805384288247, -3.4042641920559777), 
-        //glm::vec3(-0.118682389136, 0.171042266695, -0.0401425727959), 90
-    );
 
     float* device_img_buf;
     cudaMalloc(&device_img_buf, sizeof(float) * width * height * 4);
 
-    // gm->data_len = 10000;
-    render_call_handler(device_img_buf, width, height, cam, gm);
-    cudaDeviceSynchronize();
-    cudaError_t err = cudaGetLastError();
-    fprintf(stderr, "Last error: %s\n", cudaGetErrorString(err));
+    //for(int i = 0; i < 100; i++) {
+        camera_from_axis_angles(cam, 
+            glm::vec3(0.0, 0.0, -1.0),
+            glm::vec3(0.0),
+            90
+        );
 
-    cudaMemcpy(img->data, device_img_buf, sizeof(float) * width * height * 4, cudaMemcpyDeviceToHost);
+        //gm->data_len = 100000;
+        render_call_handler(device_img_buf, width, height, cam, gm);
+        cudaDeviceSynchronize();
+
+        cudaMemcpy(img->data, device_img_buf, sizeof(float) * width * height * 4, cudaMemcpyDeviceToHost);
+        char path[128];
+        int l = sprintf(path, "./test_%d.pnm", 0);
+        path[l] = 0;
+        export_pnm(img, path);
+    //}
+    
+    
     cudaFree(device_img_buf);
     destroy_GPU_model(gm);
     cudaFree(cam);
 
-    export_pnm(img, "test.pnm");
 
     destroy_image(img);
     destroy_model(mdl);
