@@ -9,14 +9,6 @@ set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
 
 project(renderer)
 
-# on build, copy the ./src/resources directory to ./bin/resources
-# (allows you to keep relative pathnames wrt resource files)
-add_custom_target(copy-resources ALL
-COMMAND ${CMAKE_COMMAND} -E copy_directory
-${CMAKE_SOURCE_DIR}/src/resources
-${CMAKE_BINARY_DIR}/bin/resources
-)
-
 add_custom_target(copy-data ALL
 COMMAND ${CMAKE_COMMAND} -E copy_directory
 ${CMAKE_SOURCE_DIR}/src/data

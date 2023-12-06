@@ -19,10 +19,23 @@ double focal2fov(double focal, double pixels) {
 }
 
 /*
- *  NxN transpose
+ *  transpose
  */
 Mat<double> transpose(Mat<double>& matrix) {
     int n = matrix.size(); 
+    Mat<double> transposed_matrix(n, Vec<double>(n));
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            transposed_matrix[j][i] = matrix[i][j];
+        }   
+    }   
+    return transposed_matrix;
+}
+
+/*
+ *  NxN transpose
+ */
+Mat<double> n_transpose(Mat<double>& matrix, int n) {
     Mat<double> transposed_matrix(n, Vec<double>(n));
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
@@ -55,15 +68,24 @@ Mat<double> qvec2rotmat(Vec<double> qvec) {
 Mat<double> world2view(Mat<double> R, Vec<double> T) {
     Mat<double> Rt(4, Vec<double>(4));
 
-/*    for (int i = 0; i < 3; i++) {
+    Mat<double> R_transpose = n_transpose(R, 3); 
+    for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 3; j++) {
-            std::cout << R[i][j] << " ";
-        }
-        std::cout << std::endl;
+            Rt[i][j] = R_transpose[i][j];
+        } 
     }
-*/
-    // TODO
+
+    for (int i = 0; i < 3; i++) {
+        Rt[i][3] = T[i];
+    }
+    Rt[3][3] = 1.0;
     return Rt;
+}
+
+/*
+ *  NxN Inverse
+ */
+Mat<double> inverse(Mat<double> matrix) {
 
 }
 
