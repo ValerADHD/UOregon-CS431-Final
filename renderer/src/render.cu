@@ -9,7 +9,6 @@
 #include "glm/mat4x4.hpp"
 #include "glm/vec4.hpp"
 #include "glm/vec3.hpp"
-#include "glm/vec2.hpp"
 #include "glm/gtc/quaternion.hpp"
 #include "glm/gtx/quaternion.hpp"
 
@@ -45,10 +44,10 @@ void camera_from_lookat(PerspectiveCamera *d_pc, glm::vec3 origin, glm::vec3 loo
     delete pc;
 }
 
-#define TEST_FRUSTUM_PLANE_GENERATION
+//#define TEST_FRUSTUM_PLANE_GENERATION
 //#define TEST_FRUSTUM_PLANE_GENERATION_VERBOSE
 
-void generate_frustum_planes(PerspectiveCamera *cam, float numTilesX, float numTilesY, float **hPlanes, float **vPlanes) {
+void generate_frustum_planes(PerspectiveCamera *cam, float numTilesX, float numTilesY, float aspectRatio, float **hPlanes, float **vPlanes) {
     PerspectiveCamera *c = new PerspectiveCamera(); //'cam' is on the GPU, we need a copy for the CPU
     cudaError_t stat = cudaMemcpy(c, cam, sizeof(PerspectiveCamera), cudaMemcpyDeviceToHost);
     if(stat != cudaSuccess) {
@@ -61,22 +60,24 @@ void generate_frustum_planes(PerspectiveCamera *cam, float numTilesX, float numT
     float *horizontalFrustumPlanes = (float *)malloc(sizeof(float) * 3 * (numBinsY + 1));
     float *verticalFrustumPlanes = (float *)malloc(sizeof(float) * 3 * (numBinsX + 1));
     //generate horizontal frustum planes, bottom to top
-    for(int i = 0; i < numBinsY + 1; i++) {
+    for(int i = 0; i <= numBinsY; i++) {
         float uvY = min(1.0, (float)i / numTilesY);
         uvY = uvY * 2.0 - 1.0;
+        uvY *= -1;
         
         glm::vec3 ray1 = glm::normalize(c->forward + c->up * uvY + c->right);
         glm::vec3 ray2 = glm::normalize(c->forward + c->up * uvY - c->right);
-        glm::vec3 planeNorm = glm::cross(ray2, ray1);
+        glm::vec3 planeNorm = glm::cross(ray1, ray2);
 
         horizontalFrustumPlanes[i * 3 + 0] = planeNorm.x;
         horizontalFrustumPlanes[i * 3 + 1] = planeNorm.y;
         horizontalFrustumPlanes[i * 3 + 2] = planeNorm.z;
     }
     //generate vertical frustum planes, left to right
-    for(int i = 0; i < numBinsX + 1; i++) {
+    for(int i = 0; i <= numBinsX; i++) {
         float uvX = min(1.0, (float)i / numTilesX);
         uvX = uvX * 2.0 - 1.0;
+        uvX *= aspectRatio;
         
         glm::vec3 ray1 = glm::normalize(c->forward + c->up + c->right * uvX);
         glm::vec3 ray2 = glm::normalize(c->forward - c->up + c->right * uvX);
@@ -162,10 +163,11 @@ void generate_frustum_planes(PerspectiveCamera *cam, float numTilesX, float numT
 void render_call_handler(float *img_buffer, unsigned int width, unsigned int height, PerspectiveCamera *cam, GPUModel *gm) {
     printf("Beginning render call!\n");
     float numTilesX = width / 16.0, numTilesY = height / 16.0;
+    float aspectRatio = (float)width / height;
     uint32_t numBinsX = ceil(numTilesX), numBinsY = ceil(numTilesY);
 
     float *horizontalFrustumPlanes, *verticalFrustumPlanes;
-    generate_frustum_planes(cam, numTilesX, numTilesY, &horizontalFrustumPlanes, &verticalFrustumPlanes);
+    generate_frustum_planes(cam, numTilesX, numTilesY, aspectRatio, &horizontalFrustumPlanes, &verticalFrustumPlanes);
 
     uint32_t *bins, *binIdxs;
     cudaError_t stat = cudaMalloc(&bins, sizeof(uint32_t) * numBinsX * numBinsY * MAX_BIN_SIZE);
@@ -195,7 +197,7 @@ void render_call_handler(float *img_buffer, unsigned int width, unsigned int hei
     numBlocks.y = (height + blockDim.y - 1) / blockDim.y;
     numBlocks.z = 1;
 
-    sortBins<<<numBlocks, blockDim>>>(cam, gm->data, gm->data_len, numTilesX, numTilesY, bins, binIdxs);
+    sortBins<<<numBlocks, 1024>>>(cam, gm->data, gm->data_len, numTilesX, numTilesY, bins, binIdxs);
     cudaDeviceSynchronize();
 
     render<<<numBlocks, blockDim>>>(
@@ -207,19 +209,19 @@ void render_call_handler(float *img_buffer, unsigned int width, unsigned int hei
     );
 }
 
-__forceinline__ __device__ glm::mat4 make_mat4(float mat[4][4]) {
-    return glm::mat4(
-        mat[0][0], mat[0][1], mat[0][2], mat[0][3],
-        mat[1][0], mat[1][1], mat[1][2], mat[1][3],
-        mat[2][0], mat[2][1], mat[2][2], mat[2][3],
-        mat[3][0], mat[3][1], mat[3][2], mat[3][3]
-    );
+__forceinline__ __device__ glm::vec3 inverse_transform_vec(glm::vec3 v, Gaussian *g) {
+    glm::vec3 r = v;
+    r -= g->mean;
+    r = g->rot * r * glm::inverse(g->rot);
+    r = glm::vec3(r.x / g->scale.x, r.y / g->scale.y, r.z / g->scale.z);
+    return r;
 }
 
-__forceinline__ __device__ glm::vec4 make_vec4(float vec[4]) {
-    return glm::vec4(
-        vec[0], vec[1], vec[2], vec[3]
-    );
+__forceinline__ __device__ glm::vec3 inverse_transform_normal(glm::vec3 v, Gaussian *g) {
+    glm::vec3 r = v;
+    r = g->rot * r * glm::inverse(g->rot);
+    r = glm::vec3(r.x * g->scale.x, r.y * g->scale.y, r.z * g->scale.z);
+    return glm::normalize(r);
 }
 
 __forceinline__ __device__ float originDistanceToPlane(glm::vec3 planeOrigin, glm::vec3 planeNormal) {
@@ -228,33 +230,32 @@ __forceinline__ __device__ float originDistanceToPlane(glm::vec3 planeOrigin, gl
 
 __global__ void binGaussians(
     PerspectiveCamera *cam, 
-    GPUGaussian *gaussians, uint32_t n,
+    Gaussian *gaussians, uint32_t n,
     float numTilesX, float numTilesY, //number of tiles for the whole screen. Can be non-integer if tiles are partially off-screen
     float *horizontalFrustumPlanes, float *verticalFrustumPlanes,
     uint32_t *bins, //actual bins, uint32_t[numBinsX][numBinsY][MAX_BIN_SIZE]
     uint32_t *binIndexes //index to the next open element in each bin, uint32_t[numBinsX][numBinsY]
 ) {
     uint32_t numBinsX = ceil(numTilesX), numBinsY = ceil(numTilesY);
-
-    float far = 1.0;
+    
+    float far = 100.0;
     float near = 0.01;
 
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
     for(int i = tid; i < n; i += blockDim.x * gridDim.x) {
-        //all planes are gauranteed to intersect the camera position, so we will use that as their origins
-        glm::vec3 planeOrigin = cam->origin;
-        
-        glm::mat4 imat = make_mat4(gaussians[i].imat);
-        //non-uniform scaling matrices do not properly handle normal vectors, instead use the inverse-transpose
-        glm::mat3 normal_imat = glm::transpose(imat);
-        normal_imat = glm::inverse(normal_imat);
-        
+        Gaussian *g = &(gaussians[i]);
+
         //transform the origin into the gaussian's model space
-        planeOrigin = imat * glm::vec4(planeOrigin, 1.0);
-        glm::vec3 farPlaneOrigin = imat * glm::vec4(cam->origin + cam->forward * far, 1.0);
-        glm::vec3 farPlaneNormal = glm::normalize(normal_imat * -cam->forward);
-        glm::vec3 nearPlaneOrigin = imat * glm::vec4(cam->origin + cam->forward * near, 1.0);
-        glm::vec3 nearPlaneNormal = glm::normalize(normal_imat * cam->forward);
+        glm::vec3 frustumPlaneOrigin = inverse_transform_vec(cam->origin, g);
+        glm::vec3 farPlaneOrigin = inverse_transform_vec(cam->origin + cam->forward * far, g);
+        glm::vec3 farPlaneNormal = inverse_transform_normal(-cam->forward, g);
+        glm::vec3 nearPlaneOrigin = inverse_transform_vec(cam->origin + cam->forward * near, g);
+        glm::vec3 nearPlaneNormal = inverse_transform_normal(cam->forward, g);
+
+        float farPlaneDist = originDistanceToPlane(farPlaneOrigin, farPlaneNormal);
+        float nearPlaneDist = originDistanceToPlane(nearPlaneOrigin, nearPlaneNormal);
+
+        if(farPlaneDist < 0 || nearPlaneDist < 0) continue;
 
         //loop through each bin, determine if the gaussian is inside that frustum
         for(int y0 = 0; y0 < numBinsY; y0++) {
@@ -269,15 +270,15 @@ __global__ void binGaussians(
                 glm::vec3 topPlaneNormal = -glm::vec3(horizontalFrustumPlanes[y * 3 + 3], horizontalFrustumPlanes[y * 3 + 4], horizontalFrustumPlanes[y * 3 + 5]);
                 
                 //transform them into the gaussian's model space, so we can simply test against the unit sphere
-                leftPlaneNormal = glm::normalize(normal_imat * leftPlaneNormal);
-                rightPlaneNormal = glm::normalize(normal_imat * rightPlaneNormal);
-                bottomPlaneNormal = glm::normalize(normal_imat * bottomPlaneNormal);
-                topPlaneNormal = glm::normalize(normal_imat * topPlaneNormal);
+                leftPlaneNormal = inverse_transform_normal(leftPlaneNormal, g);
+                rightPlaneNormal = inverse_transform_normal(rightPlaneNormal, g);
+                bottomPlaneNormal = inverse_transform_normal(bottomPlaneNormal, g);
+                topPlaneNormal = inverse_transform_normal(topPlaneNormal, g);
                 //get the signed distance from the origin to the plane
-                float leftPlaneDist = originDistanceToPlane(planeOrigin, leftPlaneNormal);
-                float rightPlaneDist = originDistanceToPlane(planeOrigin, rightPlaneNormal);
-                float bottomPlaneDist = originDistanceToPlane(planeOrigin, bottomPlaneNormal);
-                float topPlaneDist = originDistanceToPlane(planeOrigin, topPlaneNormal);
+                float leftPlaneDist = originDistanceToPlane(frustumPlaneOrigin, leftPlaneNormal);
+                float rightPlaneDist = originDistanceToPlane(frustumPlaneOrigin, rightPlaneNormal);
+                float bottomPlaneDist = originDistanceToPlane(frustumPlaneOrigin, bottomPlaneNormal);
+                float topPlaneDist = originDistanceToPlane(frustumPlaneOrigin, topPlaneNormal);
 
                 //if the unit sphere is < 1 (absolute) distance unit away, it intersects the plane
                 //if the signed distance is greater than 0, it's on the forward (inside frustum) side of the plane
@@ -285,10 +286,10 @@ __global__ void binGaussians(
                 //the frustum
                 if(leftPlaneDist > -1 && rightPlaneDist > -1 && topPlaneDist > -1 && bottomPlaneDist > -1) {
                     //inside frustum
-                    if(binIndexes[y * numBinsX + x] < MAX_BIN_SIZE - 1) { 
+                    //if(binIndexes[y * numBinsX + x] < MAX_BIN_SIZE - 1) { 
                         uint32_t binIdx = atomicAdd(&(binIndexes[y * numBinsX + x]), 1);
                         if(binIdx < MAX_BIN_SIZE) bins[(y * numBinsX + x) * MAX_BIN_SIZE + binIdx] = i;
-                    }
+                    //}
                 }
             }
         }
@@ -297,7 +298,7 @@ __global__ void binGaussians(
 
 __global__ void sortBins(
     PerspectiveCamera *cam,
-    GPUGaussian *gaussians, uint32_t n,
+    Gaussian *gaussians, uint32_t n,
     float numTilesX, float numTilesY,
     uint32_t *bins, uint32_t *binSizes
 ) {
@@ -310,16 +311,16 @@ __global__ void sortBins(
 
     __shared__ float keys[MAX_BIN_SIZE];
 
-    uint32_t tid = threadIdx.x + threadIdx.y * blockDim.x;
-    for(int i = tid; i < block_bin_size; i += blockDim.x * blockDim.y) {
-        keys[i] = glm::length(cam->origin - glm::vec3(make_vec4(gaussians[i].imat[3])));
+    uint32_t tid = threadIdx.x;
+    for(int i = tid; i < block_bin_size; i += blockDim.x) {
+        keys[i] = glm::dot(cam->forward, gaussians[i].mean - cam->origin);
     }
     
     //even odd sort
     for(int i = 0; i < block_bin_size; i++) {
         int parity = i & 1;
-        for(int j = tid * 2 + parity; j < block_bin_size - 1; j += blockDim.x * blockDim.y * 2) {
-            if(keys[j] < keys[j + 1]) {
+        for(int j = tid * 2 + parity; j < block_bin_size - 1; j += blockDim.x * 2) {
+            if(keys[j] > keys[j + 1]) {
                 float tmp = keys[j];
                 keys[j] = keys[j + 1];
                 keys[j + 1] = tmp;
@@ -346,16 +347,22 @@ __device__ void ray_unit_sphere_intersection(glm::vec3 ray_origin, glm::vec3 ray
     *back_intersection = ray_origin + ray_direction * (ray_parallel_dist + intersection_dist);
 }
 
+__forceinline__ __device__ float sigmoid(float x) { return 1.0 / (1.0 + exp(-x)); }
+
 #define NUM_RAY_STEPS 3
-__device__ glm::vec4 raymarch_gaussian(glm::vec3 ray_origin, glm::vec3 ray_dir, glm::mat4 imat, glm::vec4 base_col) {
-    glm::vec4 o = imat * glm::vec4(ray_origin, 1.0);
-    glm::vec3 rd = (imat * glm::vec4(ray_origin + ray_dir, 1.0)) - o;
+__device__ glm::vec4 raymarch_gaussian(glm::vec3 ray_origin, glm::vec3 ray_dir, Gaussian *g) {
+    glm::vec3 o = inverse_transform_vec(ray_origin, g);
+    glm::vec3 rd = inverse_transform_vec(ray_origin + ray_dir, g) - o;
     rd = glm::normalize(rd);
 
     glm::vec3 front_intersection, back_intersection;
     ray_unit_sphere_intersection(o, rd, &front_intersection, &back_intersection);
     
     glm::vec4 color = glm::vec4(0.0, 0.0, 0.0, 0.0);
+
+    glm::vec4 base_col = glm::vec4(g->color, g->alpha);
+    base_col.a = sigmoid(base_col.a);
+    base_col.r *= 0.28209479177387814; base_col.g *= 0.28209479177387814; base_col.b *= 0.28209479177387814;
 
     for(int i = 0; i < NUM_RAY_STEPS; i++) {
         glm::vec3 p = front_intersection + (back_intersection - front_intersection) * (i / (float)NUM_RAY_STEPS);
@@ -372,12 +379,10 @@ __device__ glm::vec4 raymarch_gaussian(glm::vec3 ray_origin, glm::vec3 ray_dir, 
     return color;
 }
 
-__forceinline__ __device__ float sigmoid(float x) { return 1.0 / (1.0 + exp(-x)); }
-
 __global__ void render(
     float *img_buffer, unsigned int width, unsigned int height, 
     PerspectiveCamera *cam, 
-    GPUGaussian *gaussians, uint32_t n,
+    Gaussian *gaussians, uint32_t n,
     uint32_t numBinsX, uint32_t numBinsY,
     uint32_t *bins, uint32_t *bin_sizes
 ) {
@@ -387,7 +392,7 @@ __global__ void render(
     if(x >= width || y >= height) return;
 
     //each thread block gets their own bin
-    uint32_t binIdxX = blockIdx.x, binIdxY = numBinsY - blockIdx.y;
+    uint32_t binIdxX = blockIdx.x, binIdxY = blockIdx.y;
     uint32_t *block_bin = &(bins[(binIdxY * numBinsX + binIdxX) * MAX_BIN_SIZE]);
     uint32_t block_bin_size = min(bin_sizes[binIdxY * numBinsX + binIdxX], MAX_BIN_SIZE);
 
@@ -401,25 +406,16 @@ __global__ void render(
     glm::vec3 ray = cam->forward + cam->up * uv.y + cam->right * uv.x;
     glm::vec3 o = cam->origin;
 
-    float4 color = make_float4(0.0, 0.0, 0.0, 0.0);
+    float4 color = make_float4(0.0, 0.0, 0.0, 1.0);
 
-    glm::mat4 imat = glm::mat4(
-        243.580994,26.130470,-50.983204,-0.000000, 
-        55.845165,-435.518982,108.501625,0.000000,
-        -14.838394,-29.281708,-108.986649,0.000000, 
-        0.019985,-0.316502,-0.649367,1.000000
-    );
     for(int i = 0; i < block_bin_size; i++) {
         uint32_t idx = block_bin[i];
-        GPUGaussian g = gaussians[idx];
-        glm::vec4 gaussian_color = make_vec4(g.color);
-        gaussian_color.a = sigmoid(gaussian_color.a);
-        gaussian_color.r *= 0.28209479177387814; gaussian_color.g *= 0.28209479177387814; gaussian_color.b *= 0.28209479177387814;
-        glm::vec4 c = raymarch_gaussian(o, ray, make_mat4(g.imat), gaussian_color);
-        color.x += c.x * (1.0 - color.w);
-        color.y += c.y * (1.0 - color.w);
-        color.z += c.z * (1.0 - color.w);
-        color.w += c.w * (1.0 - color.w);
+        Gaussian g = gaussians[idx];
+        glm::vec4 c = raymarch_gaussian(o, ray, &g);
+        color.x += c.x * c.w * color.w;
+        color.y += c.y * c.w * color.w;
+        color.z += c.z * c.w * color.w;
+        color.w *= (1.0 - c.w);
     }
     
     color.x += 0.5; color.y += 0.5; color.z += 0.5;

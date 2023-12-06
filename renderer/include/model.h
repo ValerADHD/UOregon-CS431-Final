@@ -23,15 +23,9 @@ typedef struct {
     float alpha;
 } Gaussian;
 
-//packed GPU-side gaussian struct
-typedef struct {
-    float imat[4][4];
-    float color[4];
-} GPUGaussian;
-
 //holds references to all of the GPU allocated memory for a model
 typedef struct {
-    GPUGaussian *data;
+    Gaussian *data;
     uint32_t data_len;
 } GPUModel;
 
