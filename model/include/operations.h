@@ -10,6 +10,21 @@ using Vec = std::vector<T>;
 template <typename T>
 using Mat = std::vector<std::vector<T>>;
 
+inline void checkCudaErrors(cudaError_t status)
+{
+    if (status != cudaSuccess) {
+        std::cerr << "CUDA Error: " << cudaGetErrorString(status) << std::endl;
+        exit(EXIT_FAILURE);
+    }
+}
+
+inline void checkCudaStatus(cublasStatus_t status)
+{
+    if (status != CUBLAS_STATUS_SUCCESS) {
+        std::cerr << "CUDA Error" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+}
 
 /*
  *  focal2fov
@@ -23,19 +38,6 @@ double focal2fov(double focal, double pixels) {
  */
 Mat<double> transpose(Mat<double>& matrix) {
     int n = matrix.size(); 
-    Mat<double> transposed_matrix(n, Vec<double>(n));
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++) {
-            transposed_matrix[j][i] = matrix[i][j];
-        }   
-    }   
-    return transposed_matrix;
-}
-
-/*
- *  NxN transpose
- */
-Mat<double> n_transpose(Mat<double>& matrix, int n) {
     Mat<double> transposed_matrix(n, Vec<double>(n));
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
@@ -68,7 +70,7 @@ Mat<double> qvec2rotmat(Vec<double> qvec) {
 Mat<double> world2view(Mat<double> R, Vec<double> T) {
     Mat<double> Rt(4, Vec<double>(4));
 
-    Mat<double> R_transpose = n_transpose(R, 3); 
+    Mat<double> R_transpose = transpose(R); 
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 3; j++) {
             Rt[i][j] = R_transpose[i][j];
@@ -83,10 +85,18 @@ Mat<double> world2view(Mat<double> R, Vec<double> T) {
 }
 
 /*
- *  NxN Inverse
+ *  Matrix Inv
  */
-Mat<double> inverse(Mat<double> matrix) {
+Mat<double> MatInv(Mat<double> matrix) {
+    Mat<double> mat_inv(4, Vec<double>(4));
 
+    double *cuda_buffer = (double *)malloc(sizeof(double) * 16);
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            cuda_buffer[i*4 + j] = matrix[i][j];
+        }
+    }
+    return mat_inv;
 }
 
 

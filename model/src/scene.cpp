@@ -58,10 +58,5 @@ void Scene::generate_nerf_ppnorm() {
     Vec<double> T = cam.getT();
 
     Mat<double> W2C = world2view(R, T);
-
-
-
+    MatInv(W2C);
 }
-
-
-

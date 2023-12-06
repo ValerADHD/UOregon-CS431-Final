@@ -24,6 +24,7 @@ pkg_check_modules(OPENCV REQUIRED opencv)
 
 # Include OpenCV directories
 include_directories(${OPENCV_INCLUDE_DIRS})
+include_directories("/packages/cuda/11.2.0/include")
 
 add_executable(out ${SOURCES})
 target_link_libraries( out ${OPENCV_LIBRARIES} )
