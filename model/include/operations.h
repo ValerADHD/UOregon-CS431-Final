@@ -3,28 +3,13 @@
 
 #include <cmath>
 #include <vector>
+#include "glm/mat4x4.hpp"
 
 template <typename T>
 using Vec = std::vector<T>;
 
 template <typename T>
 using Mat = std::vector<std::vector<T>>;
-
-inline void checkCudaErrors(cudaError_t status)
-{
-    if (status != cudaSuccess) {
-        std::cerr << "CUDA Error: " << cudaGetErrorString(status) << std::endl;
-        exit(EXIT_FAILURE);
-    }
-}
-
-inline void checkCudaStatus(cublasStatus_t status)
-{
-    if (status != CUBLAS_STATUS_SUCCESS) {
-        std::cerr << "CUDA Error" << std::endl;
-        exit(EXIT_FAILURE);
-    }
-}
 
 /*
  *  focal2fov

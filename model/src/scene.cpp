@@ -40,7 +40,7 @@ void Scene::generate_camera_infos(Vec<Image>* images, Vec<Camera>* cameras) {
 
         std::string image_name = extr.getName();
         std::string image_path = extr.getPath();
-        cv::Mat img = cv::imread(image_path);
+        cv::Mat img = cv::imread(image_path.c_str());
 
         CameraInfo cam_info(uid, R, T, 
                 FovX, FovY, img, 
