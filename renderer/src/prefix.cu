@@ -13,13 +13,13 @@ void checkCudaErrors() {
 
 __global__ void gpu_add_aux(uint32_t *initial_arr, uint32_t *aux_arr, uint32_t init_arr_size, uint32_t aux_arr_size) 
 {
-    // Load data into shared memory:
     int blockidx = blockIdx.x;
     int blocksize = blockDim.x;
     int tid = threadIdx.x;
 
-    // extern __shared__ uint32_t sdata[];
     int global_idx;
+    // Have each thread block use one aux_arr value to add back to 
+    // a section of the initial array
     for(int i = 0; i < ITEMS_PER_THREAD; i++) {
         global_idx = i * blocksize + ITEMS_PROCESSED * (blockidx + 1) + tid;
         if(global_idx < init_arr_size) {
@@ -62,6 +62,10 @@ __global__ void gpu_prefix_part(uint32_t *initial_arr, uint32_t *aux_arr, uint32
         int blockshift = 0;
         local_idx = (tid + 1) * shift * 2 - 1;
         if(shift*2 < ITEMS_PER_THREAD) {
+            // Note that this never runs, as ITEMS_PER_THREAD > 1 doesn't work
+            // I tried to get this indexing to work, but there was either undercoverage
+            // from when shift was wider than blocksize, or overcoverage if you didn't check
+            // some variable against the blocksize itself.
             for(int j = 0; j < ITEMS_PER_THREAD; j++) {
                 if(local_idx < blocksize) {
                     sdata[local_idx + blockshift] += sdata[local_idx + blockshift - shift];
@@ -83,6 +87,7 @@ __global__ void gpu_prefix_part(uint32_t *initial_arr, uint32_t *aux_arr, uint32
         local_idx = (tid + 1) * shift * 2 + shift - 1;
         int blockshift = 0;
         if(shift*2 < ITEMS_PER_THREAD) {
+            // See above for explanation of trying to get this indexing to work
             for(int j = 0; j < ITEMS_PER_THREAD; j++) {
                 if(local_idx < blocksize) {
                     sdata[local_idx + blockshift] += sdata[local_idx + blockshift - shift];
@@ -117,6 +122,9 @@ __global__ void gpu_prefix_part(uint32_t *initial_arr, uint32_t *aux_arr, uint32
 
 void in_place_gpu_prefix(uint32_t *dev_arr, uint32_t n)
 {
+    // Initialize timers for accurate GPU timing. Since this is called
+    // recursively, actual print timings were based on CPU timings,
+    // which were accurate, if actually slightly slower
     cudaEvent_t start;
     cudaEvent_t stop;
     cudaEventCreate(&start);
@@ -137,18 +145,17 @@ void in_place_gpu_prefix(uint32_t *dev_arr, uint32_t n)
     if(aux_arr_size > 0) {
         cudaMalloc((void **) &aux_arr, sizeof(uint32_t) * n / ITEMS_PROCESSED);
     }
-    // printf("running gpu prefix part with %d blocks\n", blocks);
-    fflush(stdout);
+    // Call gpu_prefix_part to do sums of each section
     gpu_prefix_part<<<dimGrid, dimBlock, shared>>>(dev_arr, aux_arr, n);
     cudaDeviceSynchronize();
     if(aux_arr_size) {
-        // printf("running nested gpu prefix\n");
-        fflush(stdout);
+        // If there is an auxiliary array, we need to prefix sum on it as well
         in_place_gpu_prefix(aux_arr, aux_arr_size);
         cudaDeviceSynchronize();
         
         dim3 dimAuxGrid(aux_arr_size, 1, 1);
         dim3 dimAuxBlock(BLOCK_SIZE, 1, 1);
+        // Apply the auxiliary array to the main array
         gpu_add_aux<<<dimAuxGrid, dimAuxBlock>>>(dev_arr, aux_arr, n, aux_arr_size);
         cudaDeviceSynchronize();
 
