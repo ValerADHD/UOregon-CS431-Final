@@ -158,10 +158,14 @@ void generate_frustum_planes(PerspectiveCamera *cam, float numTilesX, float numT
 
 #define MAX_BIN_SIZE 12288
 
-#define PRINT_BIN_SIZES
+//#define PRINT_BIN_SIZES
 
 void render_call_handler(float *img_buffer, unsigned int width, unsigned int height, PerspectiveCamera *cam, GPUModel *gm) {
     printf("Beginning render call!\n");
+    cudaEvent_t begin[3], end[3];
+    float timings[3];
+    for(int i = 0; i < 3; i++) { cudaEventCreate(&(begin[i])); cudaEventCreate(&(end[i])); }
+    
     float numTilesX = width / 16.0, numTilesY = height / 16.0;
     float aspectRatio = (float)width / height;
     uint32_t numBinsX = ceil(numTilesX), numBinsY = ceil(numTilesY);
@@ -175,18 +179,18 @@ void render_call_handler(float *img_buffer, unsigned int width, unsigned int hei
     stat = cudaMalloc(&binIdxs, sizeof(uint32_t) * numBinsX * numBinsY);
     if(stat != cudaSuccess) fprintf(stderr, "Unable to create GPU bin index array: %s\n", cudaGetErrorString(stat));
 
+    cudaEventRecord(begin[0]);
     binGaussians<<<(gm->data_len + 1024 - 1) / 1024, 1024>>>(cam, gm->data, gm->data_len, numTilesX, numTilesY, horizontalFrustumPlanes, verticalFrustumPlanes, bins, binIdxs);
-    cudaDeviceSynchronize();
+    cudaEventRecord(end[0]);
     
 #ifdef PRINT_BIN_SIZES
-    //unfinished
-    uint32_t *debugBinSizes = (uint32_t *)malloc(sizeof(uint32_t) * numBinsX * numBinsY);
-    stat = cudaMemcpy(debugBinSizes, binIdxs, sizeof(uint32_t) * numBinsX * numBinsY, cudaMemcpyDeviceToHost);
-    if(stat != cudaSuccess) fprintf(stderr, "Unable to download bin size array: %s\n", cudaGetErrorString(stat));
-    for(int y = 0; y < numBinsY; y++) for(int x = 0; x < numBinsX; x++) {
-        printf("Bin X: %d Y: %d has %d elements\n", x, y, debugBinSizes[y * numBinsX + x]);
-    }
-    free(debugBinSizes);
+    // uint32_t *debugBinSizes = (uint32_t *)malloc(sizeof(uint32_t) * numBinsX * numBinsY);
+    // stat = cudaMemcpy(debugBinSizes, binIdxs, sizeof(uint32_t) * numBinsX * numBinsY, cudaMemcpyDeviceToHost);
+    // if(stat != cudaSuccess) fprintf(stderr, "Unable to download bin size array: %s\n", cudaGetErrorString(stat));
+    // for(int y = 0; y < numBinsY; y++) for(int x = 0; x < numBinsX; x++) {
+    //     printf("Bin X: %d Y: %d has %d elements\n", x, y, debugBinSizes[y * numBinsX + x]);
+    // }
+    // free(debugBinSizes);
 #endif
 
     dim3 blockDim;
@@ -197,9 +201,11 @@ void render_call_handler(float *img_buffer, unsigned int width, unsigned int hei
     numBlocks.y = (height + blockDim.y - 1) / blockDim.y;
     numBlocks.z = 1;
 
+    cudaEventRecord(begin[1]);
     sortBins<<<numBlocks, 1024>>>(cam, gm->data, gm->data_len, numTilesX, numTilesY, bins, binIdxs);
-    cudaDeviceSynchronize();
+    cudaEventRecord(end[1]);
 
+    cudaEventRecord(begin[2]);
     render<<<numBlocks, blockDim>>>(
         img_buffer, width, height, 
         cam, 
@@ -207,6 +213,18 @@ void render_call_handler(float *img_buffer, unsigned int width, unsigned int hei
         numBinsX, numBinsY,
         bins, binIdxs
     );
+    cudaEventRecord(end[2]);
+
+    cudaDeviceSynchronize();
+
+    for(int i = 0; i < 3; i++)
+        cudaEventElapsedTime(&(timings[i]), begin[i], end[i]);
+
+    printf("Render call done! Timings are:\n");
+    printf("\tTile binning of %d Gaussians: %fms\n", gm->data_len, timings[0]);
+    printf("\tTile sorting (bin size %d): %fms\n", MAX_BIN_SIZE, timings[1]);
+    printf("\tRasterization at %dx%d: %fms\n", width, height, timings[2]);
+    printf("\tTotal time: %fms\n", timings[0] + timings[1] + timings[2]);
 }
 
 __forceinline__ __device__ glm::vec3 inverse_transform_vec(glm::vec3 v, Gaussian *g) {
