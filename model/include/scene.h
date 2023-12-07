@@ -22,6 +22,8 @@ class Scene {
 
   private:
     Vec<CameraInfo> train_cam_infos;
+    Vec<double> translate;
+    double radius;
     
 };
 
