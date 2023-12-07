@@ -58,7 +58,7 @@ Model *load_model(char *path) {
         exit(EXIT_FAILURE);
     }
 
-    float modifier = 2.9;
+    float modifier = 1.0;
 
     std::vector<Gaussian> *gaussians = new std::vector<Gaussian>();
     gaussians->reserve(vertex_element_count);
@@ -72,9 +72,9 @@ Model *load_model(char *path) {
         g.color.y = property_buffer[property_buffer_idx + 4];
         g.color.z = property_buffer[property_buffer_idx + 5];
         g.alpha = property_buffer[property_buffer_idx + 6];
-        g.scale.x = modifier * expf(property_buffer[property_buffer_idx + 7]);
-        g.scale.y = modifier * -expf(property_buffer[property_buffer_idx + 8]);
-        g.scale.z = modifier * expf(property_buffer[property_buffer_idx + 9]);
+        g.scale.x = modifier * powf(2.0, property_buffer[property_buffer_idx + 7]);
+        g.scale.y = modifier * -powf(2.0, property_buffer[property_buffer_idx + 8]);
+        g.scale.z = modifier * powf(2.0, property_buffer[property_buffer_idx + 9]);
         g.rot.w = property_buffer[property_buffer_idx + 10];
         g.rot.x = property_buffer[property_buffer_idx + 11];
         g.rot.y = property_buffer[property_buffer_idx + 12];
